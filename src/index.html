@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Слайдер для сайта от Itchief</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+        'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol';
+      color: #fff;
+      height: 3000px;
+    }
+  </style>
+  <link rel="stylesheet" href="slider.css">
+</head>
+
+<body>
+
+  <div class="slider">
+    <div class="slider__wrapper">
+      <div class="slider__item">
+        <div style="height: 250px; background: orange;">1</div>
+      </div>
+      <div class="slider__item">
+        <div style="height: 250px; background: green;">2</div>
+      </div>
+      <div class="slider__item">
+        <div style="height: 250px; background: violet;">3</div>
+      </div>
+      <div class="slider__item">
+        <div style="height: 250px; background: coral;">4</div>
+      </div>
+    </div>
+    <a class="slider__control slider__control_left" href="#" role="button"></a>
+    <a class="slider__control slider__control_right slider__control_show" href="#" role="button"></a>
+  </div>
+
+  <script src="slider.js"></script>
+  <script>
+    new SliderByItchief(document.querySelector('.slider'));
+  </script>
+
+</body>
+
+</html>
