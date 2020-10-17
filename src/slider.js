@@ -12,60 +12,46 @@ class SliderByItchief {
 
   constructor($elem, config) {
     this.#init($elem, config);
-    this.#setUpListeners();
+    this.#addEventListener();
   }
 
-  #getIndexMin(_items) {
-    let indexItem = 0;
-    _items.forEach(function (item, index) {
-      if (item.index < _items[indexItem].index) {
-        indexItem = index;
+  #getIndex() {
+    const extreme = { min: 0, max: 0 };
+    this.#items.forEach((item, index) => {
+      if (item.position < this.#items[extreme.min].position) {
+        extreme.min = index;
+      }
+      if (item.position > this.#items[extreme.max].position) {
+        extreme.max = index;
       }
     });
-    return indexItem;
-  }
-
-  #getIndexMax(_items) {
-    let indexItem = 0;
-    _items.forEach(function (item, index) {
-      if (item.index > _items[indexItem].index) {
-        indexItem = index;
-      }
-    });
-    return indexItem;
+    return extreme;
   }
 
   // сдвиг слайда
   #move(direction) {
-    let nextItem;
+    const items = this.#items;
+    const minIndex = this.#getIndex().min;
+    const maxIndex = this.#getIndex().max;
+    const minItem = items[minIndex];
+    const maxItem = items[maxIndex];
     if (direction === 'next') {
       this.#currentPosition++;
       if (
         this.#currentPosition + this.#wrapperWidth / this.#itemWidth - 1 >
-        this.#items[this.#getIndexMax(this.#items)].index
+        maxItem.position
       ) {
-        nextItem = this.#getIndexMin(this.#items);
-        this.#items[nextItem].index =
-          this.#items[this.#getIndexMax(this.#items)].index + 1;
-        this.#items[nextItem].value += this.#items.length * 100;
-        this.#items[nextItem].element.style.transform = `translateX(${
-          this.#items[nextItem].value
-        }%)`;
+        minItem.position = maxItem.position + 1;
+        minItem.transform += items.length * 100;
+        minItem.element.style.transform = `translateX(${minItem.transform}%)`;
       }
       this.#transformValue -= this.#step;
-    }
-    if (direction === 'prev') {
+    } else {
       this.#currentPosition--;
-      if (
-        this.#currentPosition <
-        this.#items[this.#getIndexMin(this.#items)].index
-      ) {
-        nextItem = this.#getIndexMax(this.#items);
-        this.#items[nextItem].index =
-          this.#items[this.#getIndexMin(this.#items)].index - 1;
-        this.#items[nextItem].value -= this.#items.length * 100;
-        this.#items[nextItem].element.style.transform =
-          'translateX(' + this.#items[nextItem].value + '%)';
+      if (this.#currentPosition < minItem.position) {
+        maxItem.position = minItem.position - 1;
+        maxItem.transform -= items.length * 100;
+        maxItem.element.style.transform = `translateX(${maxItem.transform}%)`;
       }
       this.#transformValue += this.#step;
     }
@@ -73,7 +59,7 @@ class SliderByItchief {
   }
 
   // обработчик события click для слайдера
-  #controlClick(e) {
+  #eventHandler(e) {
     const target = e.target;
     if (target.classList.contains('slider__control')) {
       e.preventDefault();
@@ -82,8 +68,8 @@ class SliderByItchief {
   }
 
   // подключения обработчиков событий для слайдера
-  #setUpListeners() {
-    this.#$elem.addEventListener('click', this.#controlClick.bind(this));
+  #addEventListener() {
+    this.#$elem.addEventListener('click', this.#eventHandler.bind(this));
   }
 
   // первичная настройка слайдера
@@ -94,8 +80,8 @@ class SliderByItchief {
     this.#itemWidth = parseFloat(getComputedStyle($items[0]).width);
     this.#wrapperWidth = parseFloat(getComputedStyle(this.#$items).width);
     this.#step = (this.#itemWidth / this.#wrapperWidth) * 100;
-    $items.forEach((item, index) =>
-      this.#items.push({ element: item, index: index, value: 0 })
+    $items.forEach((element, position) =>
+      this.#items.push({ element, position, transform: 0 })
     );
   }
 
