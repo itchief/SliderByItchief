@@ -14,6 +14,12 @@
       color: #fff;
       height: 3000px;
     }
+
+    .slider__item>div {
+      line-height: 250px;
+      font-size: 100px;
+      text-align: center;
+    }
   </style>
   <link rel="stylesheet" href="slider.css">
 </head>
@@ -21,7 +27,7 @@
 <body>
 
   <div class="slider">
-    <div class="slider__wrapper">
+    <div class="slider__items">
       <div class="slider__item">
         <div style="height: 250px; background: orange;">1</div>
       </div>
@@ -35,8 +41,8 @@
         <div style="height: 250px; background: coral;">4</div>
       </div>
     </div>
-    <a class="slider__control slider__control_left" href="#" role="button"></a>
-    <a class="slider__control slider__control_right slider__control_show" href="#" role="button"></a>
+    <a href="#" class="slider__control" data-slide="prev"></a>
+    <a href="#" class="slider__control" data-slide="next"></a>
   </div>
 
   <script src="slider.js"></script>

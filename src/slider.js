@@ -1,15 +1,14 @@
 'use strict';
 
 class SliderByItchief {
-  #positionLeftItem = 0;
-  #wrapperWidth = 0;
-  #itemWidth = 0;
-  #transform = 0;
-  #step = 0;
-  #items = [];
-  #$wrapper = null;
-  #$items = null;
-  #$controls = null;
+  #currentPosition = 0; // позиция активного элемента
+  #wrapperWidth = 0; // ширина контейнера
+  #itemWidth = 0; // вычисленная ширина одного слайда
+  #transformValue = 0; // текущее значение трансформации
+  #step = 0; // величина значения шага трансформации
+  #items = []; // массив, в котором хранятся текущее состояние слайдов
+  #$elem; // основной элемент слайдера
+  #$items; // элемент, непосредственно содержащий слайды
 
   constructor($elem, config) {
     this.#init($elem, config);
@@ -19,7 +18,7 @@ class SliderByItchief {
   #getIndexMin(_items) {
     let indexItem = 0;
     _items.forEach(function (item, index) {
-      if (item.position < _items[indexItem].position) {
+      if (item.index < _items[indexItem].index) {
         indexItem = index;
       }
     });
@@ -29,91 +28,82 @@ class SliderByItchief {
   #getIndexMax(_items) {
     let indexItem = 0;
     _items.forEach(function (item, index) {
-      if (item.position > _items[indexItem].position) {
+      if (item.index > _items[indexItem].index) {
         indexItem = index;
       }
     });
     return indexItem;
   }
 
+  // сдвиг слайда
   #move(direction) {
     let nextItem;
-    if (direction === 'right') {
-      this.#positionLeftItem++;
+    if (direction === 'next') {
+      this.#currentPosition++;
       if (
-        this.#positionLeftItem + this.#wrapperWidth / this.#itemWidth - 1 >
-        this.#items[this.#getIndexMax(this.#items)].position
+        this.#currentPosition + this.#wrapperWidth / this.#itemWidth - 1 >
+        this.#items[this.#getIndexMax(this.#items)].index
       ) {
         nextItem = this.#getIndexMin(this.#items);
-        this.#items[nextItem].position =
-          this.#items[this.#getIndexMax(this.#items)].position + 1;
-        this.#items[nextItem].transform += this.#items.length * 100;
-        this.#items[nextItem].item.style.transform =
-          'translateX(' + this.#items[nextItem].transform + '%)';
+        this.#items[nextItem].index =
+          this.#items[this.#getIndexMax(this.#items)].index + 1;
+        this.#items[nextItem].value += this.#items.length * 100;
+        this.#items[nextItem].element.style.transform = `translateX(${
+          this.#items[nextItem].value
+        }%)`;
       }
-      this.#transform -= this.#step;
+      this.#transformValue -= this.#step;
     }
-    if (direction === 'left') {
-      this.#positionLeftItem--;
+    if (direction === 'prev') {
+      this.#currentPosition--;
       if (
-        this.#positionLeftItem <
-        this.#items[this.#getIndexMin(this.#items)].position
+        this.#currentPosition <
+        this.#items[this.#getIndexMin(this.#items)].index
       ) {
         nextItem = this.#getIndexMax(this.#items);
-        this.#items[nextItem].position =
-          this.#items[this.#getIndexMin(this.#items)].position - 1;
-        this.#items[nextItem].transform -= this.#items.length * 100;
-        this.#items[nextItem].item.style.transform =
-          'translateX(' + this.#items[nextItem].transform + '%)';
+        this.#items[nextItem].index =
+          this.#items[this.#getIndexMin(this.#items)].index - 1;
+        this.#items[nextItem].value -= this.#items.length * 100;
+        this.#items[nextItem].element.style.transform =
+          'translateX(' + this.#items[nextItem].value + '%)';
       }
-      this.#transform += this.#step;
+      this.#transformValue += this.#step;
     }
-    this.#$wrapper.style.transform = 'translateX(' + this.#transform + '%)';
+    this.#$items.style.transform = `translateX(${this.#transformValue}%)`;
   }
 
-  // обработчик события click для кнопок "назад" и "вперед"
+  // обработчик события click для слайдера
   #controlClick(e) {
-    if (e.target.classList.contains('slider__control')) {
+    const target = e.target;
+    if (target.classList.contains('slider__control')) {
       e.preventDefault();
-      var direction = e.target.classList.contains('slider__control_right')
-        ? 'right'
-        : 'left';
-      this.#move(direction);
+      this.#move(target.dataset.slide);
     }
   }
 
+  // подключения обработчиков событий для слайдера
   #setUpListeners() {
-    //console.log(that);
-    // добавление к кнопкам "назад" и "вперед" обрботчика _controlClick для событя click
-    const that = this;
-    this.#$controls.forEach(function (item) {
-      item.addEventListener('click', that.#controlClick.bind(that));
-    });
+    this.#$elem.addEventListener('click', this.#controlClick.bind(this));
   }
 
+  // первичная настройка слайдера
   #init($elem, config) {
-    this.#$wrapper = $elem.querySelector('.slider__wrapper');
-    this.#$items = $elem.querySelectorAll('.slider__item');
-    this.#$controls = $elem.querySelectorAll('.slider__control');
-    this.#wrapperWidth = parseFloat(getComputedStyle(this.#$wrapper).width); // ширина обёртки
-    this.#itemWidth = parseFloat(getComputedStyle(this.#$items[0]).width); // ширина одного элемента
-    this.#positionLeftItem = 0; // позиция левого активного элемента
-    this.#transform = 0; // значение транфсофрмации .slider_wrapper
-    this.#step = (this.#itemWidth / this.#wrapperWidth) * 100; // величина шага (для трансформации)
-    this.#items = []; // массив элементов
-    // наполнение массива _items
-    const that = this;
-    this.#$items.forEach(function (item, index) {
-      that.#items.push({ item: item, position: index, transform: 0 });
-    });
-    //this.setUpListeners();
+    const $items = $elem.querySelectorAll('.slider__item');
+    this.#$elem = $elem;
+    this.#$items = $elem.querySelector('.slider__items');
+    this.#itemWidth = parseFloat(getComputedStyle($items[0]).width);
+    this.#wrapperWidth = parseFloat(getComputedStyle(this.#$items).width);
+    this.#step = (this.#itemWidth / this.#wrapperWidth) * 100;
+    $items.forEach((item, index) =>
+      this.#items.push({ element: item, index: index, value: 0 })
+    );
   }
-  right() {
-    // метод right
-    this.#move('right');
+
+  // public
+  next() {
+    this.#move('next');
   }
-  left() {
-    // метод left
-    this.#move('left');
+  prev() {
+    this.#move('prev');
   }
 }
