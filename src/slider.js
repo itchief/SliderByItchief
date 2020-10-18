@@ -1,14 +1,15 @@
 'use strict';
 
 class SliderByItchief {
-  #currentPosition = 0; // позиция активного элемента
-  #wrapperWidth = 0; // ширина контейнера
-  #itemWidth = 0; // вычисленная ширина одного слайда
-  #transformValue = 0; // текущее значение трансформации
-  #step = 0; // величина значения шага трансформации
-  #items = []; // массив, в котором хранятся текущее состояние слайдов
-  #$elem; // основной элемент слайдера
-  #$items; // элемент, непосредственно содержащий слайды
+  #positionMin = 0; // позиция активного элемента (минимальная)
+  #items = []; // массив items
+  #itemsWidth = 0; // ширина всех items
+  #itemsDisplayed = 0; // количество одновременно отображаемых items
+  #itemWidth = 0; // ширина одного item
+  #transform = 0; // текущее значение трансформации
+  #transformStep = 0; // значение шага трансформации
+  #$elem; // базовый элемент слайдера
+  #$items; // элемент, в котором находятся items
 
   constructor($elem, config) {
     this.#init($elem, config);
@@ -31,31 +32,27 @@ class SliderByItchief {
   // сдвиг слайда
   #move(direction) {
     const items = this.#items;
-    const minIndex = this.#getIndex().min;
-    const maxIndex = this.#getIndex().max;
-    const minItem = items[minIndex];
-    const maxItem = items[maxIndex];
+    const itemMin = items[this.#getIndex().min];
+    const itemMax = items[this.#getIndex().max];
     if (direction === 'next') {
-      this.#currentPosition++;
-      if (
-        this.#currentPosition + this.#wrapperWidth / this.#itemWidth - 1 >
-        maxItem.position
-      ) {
-        minItem.position = maxItem.position + 1;
-        minItem.transform += items.length * 100;
-        minItem.element.style.transform = `translateX(${minItem.transform}%)`;
+      this.#positionMin++;
+      const positionMax = this.#positionMin + this.#itemsDisplayed - 1;
+      if (positionMax > itemMax.position) {
+        itemMin.position = itemMax.position + 1;
+        itemMin.transform += items.length * 100;
+        itemMin.element.style.transform = `translateX(${itemMin.transform}%)`;
       }
-      this.#transformValue -= this.#step;
+      this.#transform -= this.#transformStep;
     } else {
-      this.#currentPosition--;
-      if (this.#currentPosition < minItem.position) {
-        maxItem.position = minItem.position - 1;
-        maxItem.transform -= items.length * 100;
-        maxItem.element.style.transform = `translateX(${maxItem.transform}%)`;
+      this.#positionMin--;
+      if (this.#positionMin < itemMin.position) {
+        itemMax.position = itemMin.position - 1;
+        itemMax.transform -= items.length * 100;
+        itemMax.element.style.transform = `translateX(${itemMax.transform}%)`;
       }
-      this.#transformValue += this.#step;
+      this.#transform += this.#transformStep;
     }
-    this.#$items.style.transform = `translateX(${this.#transformValue}%)`;
+    this.#$items.style.transform = `translateX(${this.#transform}%)`;
   }
 
   // обработчик события click для слайдера
@@ -78,8 +75,9 @@ class SliderByItchief {
     this.#$elem = $elem;
     this.#$items = $elem.querySelector('.slider__items');
     this.#itemWidth = parseFloat(getComputedStyle($items[0]).width);
-    this.#wrapperWidth = parseFloat(getComputedStyle(this.#$items).width);
-    this.#step = (this.#itemWidth / this.#wrapperWidth) * 100;
+    this.#itemsWidth = parseFloat(getComputedStyle(this.#$items).width);
+    this.#itemsDisplayed = Math.round(this.#itemsWidth / this.#itemWidth);
+    this.#transformStep = 100 / this.#itemsDisplayed;
     $items.forEach((element, position) =>
       this.#items.push({ element, position, transform: 0 })
     );
