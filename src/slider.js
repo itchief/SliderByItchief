@@ -11,6 +11,7 @@ class SliderByItchief {
   #config = {}; // конфигурация слайдера
   #$elem; // базовый элемент слайдера
   #$items; // элемент, в котором находятся items
+  #$controls; // элементы управления слайдером
 
   constructor($elem, config) {
     this.#init($elem, config);
@@ -42,15 +43,9 @@ class SliderByItchief {
           return;
         }
         if (positionMax >= itemMax.position - 1) {
-          const next = this.#$elem.querySelector(
-            '.slider__control[data-slide="next"]'
-          );
-          next.classList.add('slider__control_hide');
+          this.#$controls.next.classList.add('slider__control_hide');
         } else {
-          const prev = this.#$elem.querySelector(
-            '.slider__control[data-slide="prev"]'
-          );
-          prev.classList.remove('slider__control_hide');
+          this.#$controls.prev.classList.remove('slider__control_hide');
         }
         this.#positionMin++;
         this.#transform -= this.#transformStep;
@@ -70,15 +65,9 @@ class SliderByItchief {
           return;
         }
         if (this.#positionMin <= itemMin.position + 1) {
-          const prev = this.#$elem.querySelector(
-            '.slider__control[data-slide="prev"]'
-          );
-          prev.classList.add('slider__control_hide');
+          this.#$controls.prev.classList.add('slider__control_hide');
         } else {
-          const next = this.#$elem.querySelector(
-            '.slider__control[data-slide="next"]'
-          );
-          next.classList.remove('slider__control_hide');
+          this.#$controls.next.classList.remove('slider__control_hide');
         }
         this.#positionMin--;
         this.#transform += this.#transformStep;
@@ -115,6 +104,10 @@ class SliderByItchief {
     this.#$elem = $elem;
     this.#config = config;
     this.#$items = $elem.querySelector('.slider__items');
+    this.#$controls = {
+      prev: $elem.querySelector('.slider__control[data-slide="prev"]'),
+      next: $elem.querySelector('.slider__control[data-slide="next"]'),
+    };
     this.#itemWidth = parseFloat(getComputedStyle($items[0]).width);
     this.#itemsWidth = parseFloat(getComputedStyle(this.#$items).width);
     this.#itemsDisplayed = Math.round(this.#itemsWidth / this.#itemWidth);
@@ -123,8 +116,7 @@ class SliderByItchief {
       this.#items.push({ element, position, transform: 0 })
     );
     if (this.#config.isLooped === false) {
-      const prev = $elem.querySelector('.slider__control[data-slide="prev"]');
-      prev.classList.add('slider__control_hide');
+      this.#$controls.prev.classList.add('slider__control_hide');
     }
   }
 
