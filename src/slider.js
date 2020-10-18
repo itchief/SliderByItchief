@@ -8,6 +8,7 @@ class SliderByItchief {
   #itemWidth = 0; // ширина одного item
   #transform = 0; // текущее значение трансформации
   #transformStep = 0; // значение шага трансформации
+  #config = {}; // конфигурация слайдера
   #$elem; // базовый элемент слайдера
   #$items; // элемент, в котором находятся items
 
@@ -35,22 +36,61 @@ class SliderByItchief {
     const itemMin = items[this.#getIndex().min];
     const itemMax = items[this.#getIndex().max];
     if (direction === 'next') {
-      this.#positionMin++;
       const positionMax = this.#positionMin + this.#itemsDisplayed - 1;
-      if (positionMax > itemMax.position) {
-        itemMin.position = itemMax.position + 1;
-        itemMin.transform += items.length * 100;
-        itemMin.element.style.transform = `translateX(${itemMin.transform}%)`;
+      if (this.#config.isLooped === false) {
+        if (positionMax >= itemMax.position) {
+          return;
+        }
+        if (positionMax >= itemMax.position - 1) {
+          const next = this.#$elem.querySelector(
+            '.slider__control[data-slide="next"]'
+          );
+          next.classList.add('slider__control_hide');
+        } else {
+          const prev = this.#$elem.querySelector(
+            '.slider__control[data-slide="prev"]'
+          );
+          prev.classList.remove('slider__control_hide');
+        }
+        this.#positionMin++;
+        this.#transform -= this.#transformStep;
+      } else {
+        this.#positionMin++;
+        const positionMax = this.#positionMin + this.#itemsDisplayed - 1;
+        if (positionMax > itemMax.position) {
+          itemMin.position = itemMax.position + 1;
+          itemMin.transform += items.length * 100;
+          itemMin.element.style.transform = `translateX(${itemMin.transform}%)`;
+        }
+        this.#transform -= this.#transformStep;
       }
-      this.#transform -= this.#transformStep;
     } else {
-      this.#positionMin--;
-      if (this.#positionMin < itemMin.position) {
-        itemMax.position = itemMin.position - 1;
-        itemMax.transform -= items.length * 100;
-        itemMax.element.style.transform = `translateX(${itemMax.transform}%)`;
+      if (this.#config.isLooped === false) {
+        if (this.#positionMin <= itemMin.position) {
+          return;
+        }
+        if (this.#positionMin <= itemMin.position + 1) {
+          const prev = this.#$elem.querySelector(
+            '.slider__control[data-slide="prev"]'
+          );
+          prev.classList.add('slider__control_hide');
+        } else {
+          const next = this.#$elem.querySelector(
+            '.slider__control[data-slide="next"]'
+          );
+          next.classList.remove('slider__control_hide');
+        }
+        this.#positionMin--;
+        this.#transform += this.#transformStep;
+      } else {
+        this.#positionMin--;
+        if (this.#positionMin < itemMin.position) {
+          itemMax.position = itemMin.position - 1;
+          itemMax.transform -= items.length * 100;
+          itemMax.element.style.transform = `translateX(${itemMax.transform}%)`;
+        }
+        this.#transform += this.#transformStep;
       }
-      this.#transform += this.#transformStep;
     }
     this.#$items.style.transform = `translateX(${this.#transform}%)`;
   }
@@ -73,6 +113,7 @@ class SliderByItchief {
   #init($elem, config) {
     const $items = $elem.querySelectorAll('.slider__item');
     this.#$elem = $elem;
+    this.#config = config;
     this.#$items = $elem.querySelector('.slider__items');
     this.#itemWidth = parseFloat(getComputedStyle($items[0]).width);
     this.#itemsWidth = parseFloat(getComputedStyle(this.#$items).width);
@@ -81,6 +122,10 @@ class SliderByItchief {
     $items.forEach((element, position) =>
       this.#items.push({ element, position, transform: 0 })
     );
+    if (this.#config.isLooped === false) {
+      const prev = $elem.querySelector('.slider__control[data-slide="prev"]');
+      prev.classList.add('slider__control_hide');
+    }
   }
 
   // public
