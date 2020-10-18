@@ -1,5 +1,9 @@
 'use strict';
 
+const isTouchDevice = () => {
+  return !!('ontouchstart' in window || navigator.maxTouchPoints);
+};
+
 class SliderByItchief {
   #positionMin = 0; // позиция активного элемента (минимальная)
   #items = []; // массив items
