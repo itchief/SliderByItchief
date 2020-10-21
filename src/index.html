@@ -46,10 +46,14 @@
   </div>
 
   <script src="slider.js"></script>
+  <!--script src="slider_es5.js"></script-->
   <script>
     //const slider1 = new SliderByItchief(document.querySelector('.slider'));
     const slider1 = new SliderByItchief(document.querySelector('.slider'), {
-      isLooped: true
+      infinite: true,
+      autoplay: true,
+      autoplaySpeed: 5000,
+      slidesToShow: 3, // по умолчанию
     });
   </script>
 

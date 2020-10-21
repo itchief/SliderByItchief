@@ -4,6 +4,15 @@ const isTouchDevice = () => {
   return !!('ontouchstart' in window || navigator.maxTouchPoints);
 };
 
+const hasElementInVew = $elem => {
+  const rect = $elem.getBoundingClientRect();
+  const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+  const windowWidth = window.innerWidth || document.documentElement.clientWidth;
+  const vertInView = rect.top <= windowHeight && rect.top + rect.height >= 0;
+  const horInView = rect.left <= windowWidth && rect.left + rect.width >= 0;
+  return vertInView && horInView;
+};
+
 class SliderByItchief {
   #positionMin = 0; // позиция активного элемента (минимальная)
   #items = []; // массив items
@@ -12,6 +21,8 @@ class SliderByItchief {
   #itemWidth = 0; // ширина одного item
   #transform = 0; // текущее значение трансформации
   #transformStep = 0; // значение шага трансформации
+  #intervalId = null;
+  #responsive = {};
   #config = {}; // конфигурация слайдера
   #$elem; // базовый элемент слайдера
   #$items; // элемент, в котором находятся items
@@ -37,12 +48,15 @@ class SliderByItchief {
 
   // сдвиг слайда
   #move(direction) {
+    if (!hasElementInVew(this.#$elem)) {
+      return;
+    }
     const items = this.#items;
     const itemMin = items[this.#getIndex().min];
     const itemMax = items[this.#getIndex().max];
     if (direction === 'next') {
       const positionMax = this.#positionMin + this.#itemsDisplayed - 1;
-      if (this.#config.isLooped === false) {
+      if (this.#config.infinite === false) {
         if (positionMax >= itemMax.position) {
           return;
         }
@@ -64,7 +78,7 @@ class SliderByItchief {
         this.#transform -= this.#transformStep;
       }
     } else {
-      if (this.#config.isLooped === false) {
+      if (this.#config.infinite === false) {
         if (this.#positionMin <= itemMin.position) {
           return;
         }
@@ -93,13 +107,76 @@ class SliderByItchief {
     const target = e.target;
     if (target.classList.contains('slider__control')) {
       e.preventDefault();
+      this.#autoplay('off');
       this.#move(target.dataset.slide);
+      this.#autoplay();
     }
   }
 
   // подключения обработчиков событий для слайдера
   #addEventListener() {
     this.#$elem.addEventListener('click', this.#eventHandler.bind(this));
+    if (this.#config.autoplay === true) {
+      this.#$elem.addEventListener('mouseenter', () => {
+        this.#autoplay('off');
+      });
+      this.#$elem.addEventListener('mouseleave', () => {
+        this.#autoplay();
+      });
+      window.addEventListener(
+        'resize',
+        (() => {
+          const clientWidth = parseFloat(document.body.clientWidth);
+          const $item = this.#$elem.querySelector('.slider__item');
+          const $items = this.#$elem.querySelector('.slider__items');
+          const itemWidth = parseFloat(getComputedStyle($item).width);
+          const itemsWidth = parseFloat(getComputedStyle($items).width);
+          const itemsDisplayed = Math.round(itemsWidth / itemWidth);
+          if (itemsDisplayed !== this.#itemsDisplayed) {
+            this.#autoplay('off');
+            this.#positionMin = 0;
+            this.#transform = 0;
+            this.#itemWidth = itemWidth;
+            this.#itemsWidth = itemsWidth;
+            this.#itemsDisplayed = itemsDisplayed;
+            this.#transformStep = 100 / itemsDisplayed;
+            $items.classList.add('slider__items_off');
+            $items.style = '';
+            $items.querySelectorAll('.slider__item').forEach($elem => {
+              $elem.style = '';
+            });
+            window.setTimeout(
+              (() => {
+                $items.classList.remove('slider__items_off');
+                this.#items = [];
+                $items
+                  .querySelectorAll('.slider__item')
+                  .forEach((element, position) =>
+                    this.#items.push({ element, position, transform: 0 })
+                  );
+              }).bind(this),
+              200
+            );
+          }
+        }).bind(this)
+      );
+    }
+  }
+
+  #autoplay(action) {
+    if (this.#config.autoplay !== true) {
+      return;
+    }
+    if (action === 'off') {
+      clearInterval(this.#intervalId);
+      this.#intervalId = null;
+      return;
+    }
+    if (this.#intervalId === null) {
+      this.#intervalId = setInterval(() => {
+        this.#move('next');
+      }, this.#config.autoplaySpeed);
+    }
   }
 
   // первичная настройка слайдера
@@ -116,12 +193,11 @@ class SliderByItchief {
     this.#itemsWidth = parseFloat(getComputedStyle(this.#$items).width);
     this.#itemsDisplayed = Math.round(this.#itemsWidth / this.#itemWidth);
     this.#transformStep = 100 / this.#itemsDisplayed;
-    $items.forEach((element, position) =>
-      this.#items.push({ element, position, transform: 0 })
-    );
-    if (this.#config.isLooped === false) {
+    $items.forEach((element, position) => this.#items.push({ element, position, transform: 0 }));
+    if (this.#config.infinite === false) {
       this.#$controls.prev.classList.add('slider__control_hide');
     }
+    this.#autoplay();
   }
 
   // public
