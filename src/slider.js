@@ -25,7 +25,8 @@ class SliderByItchief {
   //#responsive = {};
   #config = {}; // конфигурация слайдера
   #$elem; // базовый элемент слайдера
-  #$items; // элемент, в котором находятся items
+  #$wrapper; // элемент, в котором находятся items
+  #$items; // коллекция элементов (items)
   #$controls; // элементы управления слайдером
   #hasTransition = false;
 
@@ -59,7 +60,7 @@ class SliderByItchief {
 
   #itemsOnBothSides() {
     const items = this.#items;
-    const $inView = this.#$items.querySelectorAll('.slider__item.in-view');
+    const $inView = this.#$wrapper.querySelectorAll('.slider__item.in-view');
     const positionMax = this.#positionMin + this.#itemsDisplayed - 1;
     const itemMax = items[this.#getIndex().max];
     const itemMin = items[this.#getIndex().min];
@@ -143,7 +144,7 @@ class SliderByItchief {
         this.#transform += this.#transformStep;
       }
     }
-    this.#$items.style.transform = `translateX(${this.#transform}%)`;
+    this.#$wrapper.style.transform = `translateX(${this.#transform}%)`;
   }
 
   // обработчик события click для слайдера
@@ -158,10 +159,8 @@ class SliderByItchief {
   }
 
   #reset() {
-    const $item = this.#$elem.querySelector('.slider__item');
-    const $items = this.#$elem.querySelector('.slider__items');
-    const itemWidth = parseFloat(getComputedStyle($item).width);
-    const itemsWidth = parseFloat(getComputedStyle($items).width);
+    const itemWidth = parseFloat(getComputedStyle(this.#$items[0]).width);
+    const itemsWidth = parseFloat(getComputedStyle(this.#$wrapper).width);
     const itemsDisplayed = Math.round(itemsWidth / itemWidth);
     if (itemsDisplayed === this.#itemsDisplayed) {
       return;
@@ -173,15 +172,15 @@ class SliderByItchief {
     this.#itemsWidth = itemsWidth;
     this.#itemsDisplayed = itemsDisplayed;
     this.#transformStep = 100 / itemsDisplayed;
-    $items.classList.add('slider__items_off');
-    $items.style = '';
-    $items.querySelectorAll('.slider__item').forEach($elem => {
+    this.#$wrapper.classList.add('slider__items_off');
+    this.#$wrapper.style = '';
+    this.#$items.forEach($elem => {
       $elem.style = '';
     });
     window.setTimeout(() => {
-      $items.classList.remove('slider__items_off');
+      this.#$wrapper.classList.remove('slider__items_off');
       this.#items = [];
-      $items.querySelectorAll('.slider__item').forEach((element, position) => {
+      this.#$items.forEach((element, position) => {
         this.#items.push({ element, position, transform: 0 });
       });
       this.#itemsOnBothSides();
@@ -192,7 +191,7 @@ class SliderByItchief {
   // подключения обработчиков событий для слайдера
   #addEventListener() {
     this.#$elem.addEventListener('click', this.#eventHandler.bind(this));
-    this.#$items.addEventListener('transitionend', () => {
+    this.#$wrapper.addEventListener('transitionend', () => {
       this.#hasTransition = false;
     });
     if (this.#config.autoplay === true) {
@@ -226,14 +225,15 @@ class SliderByItchief {
   #init($elem, config) {
     const $items = $elem.querySelectorAll('.slider__item');
     this.#$elem = $elem;
-    this.#config = config;
-    this.#$items = $elem.querySelector('.slider__items');
+    this.#$wrapper = $elem.querySelector('.slider__items');
+    this.#$items = $items;
     this.#$controls = {
       prev: $elem.querySelector('.slider__control[data-slide="prev"]'),
       next: $elem.querySelector('.slider__control[data-slide="next"]'),
     };
+    this.#config = config;
     this.#itemWidth = parseFloat(getComputedStyle($items[0]).width);
-    this.#itemsWidth = parseFloat(getComputedStyle(this.#$items).width);
+    this.#itemsWidth = parseFloat(getComputedStyle(this.#$wrapper).width);
     this.#itemsDisplayed = Math.round(this.#itemsWidth / this.#itemWidth);
     this.#transformStep = 100 / this.#itemsDisplayed;
 

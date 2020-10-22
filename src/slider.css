@@ -9,7 +9,10 @@
 
 .slider {
   position: relative;
-  /*overflow: hidden;*/
+}
+
+.slider__wrapper {
+  overflow: hidden;
 }
 
 .slider__items {
