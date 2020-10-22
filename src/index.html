@@ -15,6 +15,11 @@
       height: 3000px;
     }
 
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
     .slider__item>div {
       line-height: 250px;
       font-size: 100px;
@@ -26,24 +31,33 @@
 
 <body>
 
-  <div class="slider">
-    <div class="slider__items">
-      <div class="slider__item">
-        <div style="height: 250px; background: orange;">1</div>
+  <div class="container">
+
+    <div class="slider">
+      <div class="slider__items">
+        <div class="slider__item">
+          <div style="height: 250px; background: orange;">1</div>
+        </div>
+        <div class="slider__item">
+          <div style="height: 250px; background: green;">2</div>
+        </div>
+        <div class="slider__item">
+          <div style="height: 250px; background: violet;">3</div>
+        </div>
+        <div class="slider__item">
+          <div style="height: 250px; background: coral;">4</div>
+        </div>
+        <div class="slider__item">
+          <div style="height: 250px; background: lightseagreen;">5</div>
+        </div>
       </div>
-      <div class="slider__item">
-        <div style="height: 250px; background: green;">2</div>
-      </div>
-      <div class="slider__item">
-        <div style="height: 250px; background: violet;">3</div>
-      </div>
-      <div class="slider__item">
-        <div style="height: 250px; background: coral;">4</div>
-      </div>
+      <a href="#" class="slider__control" data-slide="prev"></a>
+      <a href="#" class="slider__control" data-slide="next"></a>
     </div>
-    <a href="#" class="slider__control" data-slide="prev"></a>
-    <a href="#" class="slider__control" data-slide="next"></a>
+
   </div>
+
+
 
   <script src="slider.js"></script>
   <!--script src="slider_es5.js"></script-->
