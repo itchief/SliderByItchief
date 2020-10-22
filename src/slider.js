@@ -157,6 +157,38 @@ class SliderByItchief {
     }
   }
 
+  #reset() {
+    const $item = this.#$elem.querySelector('.slider__item');
+    const $items = this.#$elem.querySelector('.slider__items');
+    const itemWidth = parseFloat(getComputedStyle($item).width);
+    const itemsWidth = parseFloat(getComputedStyle($items).width);
+    const itemsDisplayed = Math.round(itemsWidth / itemWidth);
+    if (itemsDisplayed === this.#itemsDisplayed) {
+      return;
+    }
+    this.#autoplay('off');
+    this.#positionMin = 0;
+    this.#transform = 0;
+    this.#itemWidth = itemWidth;
+    this.#itemsWidth = itemsWidth;
+    this.#itemsDisplayed = itemsDisplayed;
+    this.#transformStep = 100 / itemsDisplayed;
+    $items.classList.add('slider__items_off');
+    $items.style = '';
+    $items.querySelectorAll('.slider__item').forEach($elem => {
+      $elem.style = '';
+    });
+    window.setTimeout(() => {
+      $items.classList.remove('slider__items_off');
+      this.#items = [];
+      $items.querySelectorAll('.slider__item').forEach((element, position) => {
+        this.#items.push({ element, position, transform: 0 });
+      });
+      this.#itemsOnBothSides();
+      this.#autoplay();
+    }, 200);
+  }
+
   // подключения обработчиков событий для слайдера
   #addEventListener() {
     this.#$elem.addEventListener('click', this.#eventHandler.bind(this));
@@ -171,44 +203,7 @@ class SliderByItchief {
         this.#autoplay();
       });
     }
-    window.addEventListener(
-      'resize',
-      (() => {
-        const clientWidth = parseFloat(document.body.clientWidth);
-        const $item = this.#$elem.querySelector('.slider__item');
-        const $items = this.#$elem.querySelector('.slider__items');
-        const itemWidth = parseFloat(getComputedStyle($item).width);
-        const itemsWidth = parseFloat(getComputedStyle($items).width);
-        const itemsDisplayed = Math.round(itemsWidth / itemWidth);
-        if (itemsDisplayed !== this.#itemsDisplayed) {
-          this.#autoplay('off');
-          this.#positionMin = 0;
-          this.#transform = 0;
-          this.#itemWidth = itemWidth;
-          this.#itemsWidth = itemsWidth;
-          this.#itemsDisplayed = itemsDisplayed;
-          this.#transformStep = 100 / itemsDisplayed;
-          $items.classList.add('slider__items_off');
-          $items.style = '';
-          $items.querySelectorAll('.slider__item').forEach($elem => {
-            $elem.style = '';
-          });
-          window.setTimeout(
-            (() => {
-              $items.classList.remove('slider__items_off');
-              this.#items = [];
-              $items
-                .querySelectorAll('.slider__item')
-                .forEach((element, position) =>
-                  this.#items.push({ element, position, transform: 0 })
-                );
-              this.#itemsOnBothSides();
-            }).bind(this),
-            200
-          );
-        }
-      }).bind(this)
-    );
+    window.addEventListener('resize', this.#reset.bind(this));
   }
 
   #autoplay(action) {
