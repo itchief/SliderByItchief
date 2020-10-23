@@ -14,63 +14,153 @@
       color: #fff;
       height: 3000px;
     }
-
+  </style>
+  <link rel="stylesheet" href="slider.css">
+  <style>
     .container {
       max-width: 700px;
       margin: 0 auto;
     }
 
-    .slider__item>div {
+    .slider__item {
+      flex: 0 0 50%;
+      max-width: 50%;
+    }
+
+    /*@media (min-width: 600px) {
+      .slider__item {
+        flex: 0 0 50%;
+        max-width: 50%;
+      }
+    }*/
+
+    .slider__container {
       line-height: 250px;
       font-size: 100px;
       text-align: center;
+      height: 250px;
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+
+    .slider__item:nth-child(1) .slider__content {
+      background-color: orange;
+    }
+
+    .slider__item:nth-child(2) .slider__content {
+      background-color: green;
+    }
+
+    .slider__item:nth-child(3) .slider__content {
+      background-color: violet;
+    }
+
+    .slider__item:nth-child(4) .slider__content {
+      background-color: coral;
+    }
+
+    .slider__item:nth-child(5) .slider__content {
+      background-color: lightseagreen;
+    }
+
+    .slider__item:nth-child(6) .slider__content {
+      background-color: lightseagreen;
+    }
+
+    .slider__item:nth-child(7) .slider__content {
+      background-color: lightseagreen;
+    }
+
+    .slider__item:nth-child(8) .slider__content {
+      background-color: lightseagreen;
+    }
+
+    .slider__item:nth-child(9) .slider__content {
+      background-color: lightseagreen;
     }
   </style>
-  <link rel="stylesheet" href="slider.css">
 </head>
 
 <body>
 
   <div class="container">
-
-    <div class="slider">
+    <div class="slider" data-slider="sliderbyitchief" data-infinite="true" data-autoplay="true">
       <div class="slider__wrapper">
         <div class="slider__items">
           <div class="slider__item">
-            <div style="height: 250px; background: orange;">1</div>
+            <div class="slider__container">
+              <div class="slider__content">1</div>
+            </div>
           </div>
           <div class="slider__item">
-            <div style="height: 250px; background: green;">2</div>
+            <div class="slider__container">
+              <div class="slider__content">2</div>
+            </div>
           </div>
           <div class="slider__item">
-            <div style="height: 250px; background: violet;">3</div>
+            <div class="slider__container">
+              <div class="slider__content">3</div>
+            </div>
           </div>
           <div class="slider__item">
-            <div style="height: 250px; background: coral;">4</div>
+            <div class="slider__container">
+              <div class="slider__content">4</div>
+            </div>
           </div>
           <div class="slider__item">
-            <div style="height: 250px; background: lightseagreen;">5</div>
+            <div class="slider__container">
+              <div class="slider__content">5</div>
+            </div>
+          </div>
+          <div class="slider__item">
+            <div class="slider__container">
+              <div class="slider__content">6</div>
+            </div>
+          </div>
+          <div class="slider__item">
+            <div class="slider__container">
+              <div class="slider__content">7</div>
+            </div>
+          </div>
+          <div class="slider__item">
+            <div class="slider__container">
+              <div class="slider__content">8</div>
+            </div>
+          </div>
+          <div class="slider__item">
+            <div class="slider__container">
+              <div class="slider__content">9</div>
+            </div>
           </div>
         </div>
       </div>
       <a href="#" class="slider__control" data-slide="prev"></a>
       <a href="#" class="slider__control" data-slide="next"></a>
+      <ol class="slider__indicators">
+        <li data-slide-to="0"></li>
+        <li data-slide-to="1"></li>
+        <li data-slide-to="2"></li>
+        <li data-slide-to="3"></li>
+        <li data-slide-to="4"></li>
+        <li data-slide-to="5"></li>
+        <li data-slide-to="6"></li>
+        <li data-slide-to="7"></li>
+        <li data-slide-to="8"></li>
+      </ol>
     </div>
 
   </div>
-
-
 
   <script src="slider.js"></script>
   <!--script src="slider_es5.js"></script-->
   <script>
     //const slider1 = new SliderByItchief(document.querySelector('.slider'));
-    const slider1 = new SliderByItchief(document.querySelector('.slider'), {
+    /*const slider1 = new SliderByItchief(document.querySelector('.slider'), {
       infinite: true,
       autoplay: true,
       autoplaySpeed: 5000,
       slidesToShow: 3, // по умолчанию
-    });
+    });*/
   </script>
 
 </body>

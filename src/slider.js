@@ -28,6 +28,7 @@ class SliderByItchief {
   #$wrapper; // элемент, в котором находятся items
   #$items; // коллекция элементов (items)
   #$controls; // элементы управления слайдером
+  #$indicators; // индикаторы
   #hasTransition = false;
 
   constructor($elem, config) {
@@ -58,6 +59,16 @@ class SliderByItchief {
     return element;
   }
 
+  #updateIndicators() {
+    this.#$items.forEach(($element, index) => {
+      if ($element.classList.contains('in-view')) {
+        this.#$indicators[index].classList.add('active');
+      } else {
+        this.#$indicators[index].classList.remove('active');
+      }
+    });
+  }
+
   #itemsOnBothSides() {
     const items = this.#items;
     const $inView = this.#$wrapper.querySelectorAll('.slider__item.in-view');
@@ -72,6 +83,7 @@ class SliderByItchief {
     for (let i = this.#positionMin; i < this.#positionMin + this.#itemsDisplayed; i++) {
       this.#getElementByPosition(i).classList.add('in-view');
     }
+    this.#updateIndicators();
     if (this.#positionMin === itemMin.position) {
       // добавление элемента слева
       itemMax.position = itemMin.position - 1;
@@ -86,17 +98,16 @@ class SliderByItchief {
   }
 
   // сдвиг слайда
-  #move(direction) {
-    if (!hasElementInVew(this.#$elem) || this.#hasTransition) {
-      return;
+  #move(direction, forced = false) {
+    if (!forced) {
+      if (!hasElementInVew(this.#$elem) || this.#hasTransition) {
+        return;
+      }
     }
     this.#hasTransition = true;
     const items = this.#items;
     const itemMin = items[this.#getIndex().min];
     const itemMax = items[this.#getIndex().max];
-    //
-    const itemMinNext = items[this.#getIndex().min + 1];
-    //
     if (direction === 'next') {
       const positionMax = this.#positionMin + this.#itemsDisplayed - 1;
       if (this.#config.infinite === false) {
@@ -147,14 +158,39 @@ class SliderByItchief {
     this.#$wrapper.style.transform = `translateX(${this.#transform}%)`;
   }
 
-  // обработчик события click для слайдера
+  // обработчик click для слайдера
   #eventHandler(e) {
     const target = e.target;
+    this.#autoplay('off');
     if (target.classList.contains('slider__control')) {
+      // при клике на кнопки влево и вправо
       e.preventDefault();
-      this.#autoplay('off');
       this.#move(target.dataset.slide);
-      this.#autoplay();
+    } else if (target.dataset.slideTo) {
+      // при клике на индикаторы
+      const index = +target.dataset.slideTo;
+      this.#moveTo(index);
+    }
+    this.#autoplay();
+  }
+
+  #moveTo(index) {
+    let minIndex = this.#$indicators.length - 1;
+    this.#$indicators.forEach(element => {
+      if (element.classList.contains('active')) {
+        const slideTo = +element.dataset.slideTo;
+        if (slideTo < minIndex) {
+          minIndex = slideTo;
+        }
+      }
+    });
+    const diff = index - minIndex;
+    if (diff === 0) {
+      return;
+    }
+    const direction = diff > 0 ? 'next' : 'prev';
+    for (let i = 1; i <= Math.abs(diff); i++) {
+      this.#move(direction, true);
     }
   }
 
@@ -231,6 +267,7 @@ class SliderByItchief {
       prev: $elem.querySelector('.slider__control[data-slide="prev"]'),
       next: $elem.querySelector('.slider__control[data-slide="next"]'),
     };
+    this.#$indicators = $elem.querySelectorAll('.slider__indicators>li');
     this.#config = config;
     this.#itemWidth = parseFloat(getComputedStyle($items[0]).width);
     this.#itemsWidth = parseFloat(getComputedStyle(this.#$wrapper).width);
@@ -253,3 +290,15 @@ class SliderByItchief {
     this.#move('prev');
   }
 }
+
+document.querySelectorAll('[data-slider="sliderbyitchief"]').forEach($element => {
+  const dataset = $element.dataset;
+  const infinite = dataset.infinite === 'true' ? true : false;
+  const autoplay = dataset.autoplay === 'true' ? true : false;
+  let autoplaySpeed = dataset.autoplayspeed ? parseInt(dataset.autoplayspeed) : 5000;
+  new SliderByItchief($element, {
+    infinite: infinite,
+    autoplay: autoplay,
+    autoplaySpeed: autoplaySpeed,
+  });
+});
