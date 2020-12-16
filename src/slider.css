@@ -12,7 +12,8 @@
 }
 
 .slider__wrapper {
-  overflow: hidden;
+  /*overflow: hidden;*/
+  /*width: 700px;*/
 }
 
 .slider__items {

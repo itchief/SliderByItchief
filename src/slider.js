@@ -25,25 +25,45 @@ class SliderByItchief {
   //_responsive = {};
   _config = {}; // конфигурация слайдера
   _$elem; // базовый элемент слайдера
-  _$wrapper; // элемент, в котором находятся items
-  _$items; // коллекция элементов (items)
+  _$sliderItems; // элемент, в котором находятся items
+  _$sliderItem; // коллекция элементов (items)
   _$controls; // элементы управления слайдером
   _$indicators; // индикаторы
   _hasTransition = false;
   _queue = [];
+  _moveByOne = false;
 
   constructor($elem, config) {
     this._init($elem, config);
     this._addEventListener();
   }
 
+  // animate
+  _animate({ start, end, timing, draw, duration }) {
+    start();
+    this._hasTransition = true;
+    let startTime = performance.now();
+    requestAnimationFrame(function animate(time) {
+      if (startTime > time) startTime = time;
+      let timeFraction = (time - startTime) / duration;
+      if (timeFraction > 1) timeFraction = 1;
+      let progress = timing(timeFraction);
+      draw(progress);
+      if (timeFraction < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        end();
+      }
+    });
+  }
+
   // получить крайние элементы
-  _getExtremeElements() {
+  _getExtremeElementsByOrder() {
     let min = 0;
     let max = 0;
     let $min, $max;
-    this._$items.forEach($elem => {
-      const order = +$elem.style.order;
+    this._$sliderItem.forEach($elem => {
+      const order = +$elem.dataset.order;
       if (order <= min) {
         min = order;
         $min = $elem;
@@ -52,26 +72,36 @@ class SliderByItchief {
         $max = $elem;
       }
     });
-    return { min, max, $min, $max };
+    return { $min, $max };
   }
 
   // переместить крайний элемент
-  _moveExtremeElement() {
-    const extremeElements = this._getExtremeElements();
-    if (this._itemsOnScreen - 1 >= extremeElements.max) {
-      this._$wrapper.classList.remove('slider__items_transition2');
+  _moveExtremeElement(direction) {
+    const $elements = this._getExtremeElementsByOrder();
+    const count = this._$sliderItem.length;
+    const minOrder = +$elements.$min.dataset.order;
+    let translate = +$elements.$min.dataset.translate;
+    if (minOrder < -1) {
+      //this._transform += this._transformStep;
+      $elements.$min.dataset.order = minOrder + count;
+      translate += count * 100;
+      $elements.$min.dataset.translate = translate;
+      $elements.$min.style.transform = `translateX(${translate}%)`;
+    }
+    /*if (this._itemsOnScreen - 1 >= extremeElements.max) {
+      this._$sliderItems.classList.remove('slider__items_transition');
       this._transform += this._transformStep;
-      this._$wrapper.style.transform = `translateX(${this._transform}%)`;
+      this._$sliderItems.style.transform = `translateX(${this._transform}%)`;
       extremeElements.$min.style.order = this._itemsOnScreen;
     } else if (extremeElements.min >= 0) {
-      this._$wrapper.classList.remove('slider__items_transition2');
+      this._$sliderItems.classList.remove('slider__items_transition');
       this._transform -= this._transformStep;
-      this._$wrapper.style.transform = `translateX(${this._transform}%)`;
+      this._$sliderItems.style.transform = `translateX(${this._transform}%)`;
       extremeElements.$max.style.order = extremeElements.min - 1;
-    }
+    }*/
   }
 
-  _getIndex() {
+  /* _getIndex() {
     const extreme = { min: 0, max: 0 };
     this._items.forEach((item, index) => {
       if (item.position < this._items[extreme.min].position) {
@@ -92,10 +122,10 @@ class SliderByItchief {
       }
     });
     return element;
-  }
+  }*/
 
   _updateIndicators() {
-    this._$items.forEach(($element, index) => {
+    this._$sliderItem.forEach(($element, index) => {
       if ($element.classList.contains('in-view')) {
         this._$indicators[index].classList.add('active');
       } else {
@@ -106,7 +136,7 @@ class SliderByItchief {
 
   _itemsOnBothSides() {
     const items = this._items;
-    const $inView = this._$wrapper.querySelectorAll('.slider__item.in-view');
+    const $inView = this._$sliderItems.querySelectorAll('.slider__item.in-view');
     const positionMax = this._positionMin + this._itemsOnScreen - 1;
     const itemMax = items[this._getIndex().max];
     const itemMin = items[this._getIndex().min];
@@ -133,32 +163,62 @@ class SliderByItchief {
   }
 
   // сдвиг слайда
-  _move(direction, forced = false) {
+  _move(direction, duration = 1000) {
     /*if (!forced) {*/
 
     if (!hasElementInVew(this._$elem) || this._hasTransition) {
       return;
     }
-    //}
-    this._hasTransition = true;
-    /*const items = this._items;
-    const itemMin = items[this._getIndex().min];
-    const itemMax = items[this._getIndex().max];
-    */
 
-    this._$items.forEach(element => {
+    this._hasTransition = true;
+
+    //const duration = 1000;
+    const that = this;
+
+    this._animate({
+      start() {
+        that._moveExtremeElement(direction);
+        that._$sliderItem.forEach($element => {
+          $element.dataset.order = +$element.dataset.order - 1;
+        });
+      },
+      duration: duration,
+      timing(timeFraction) {
+        return timeFraction;
+      },
+      draw(progress) {
+        const value = that._transform - (progress * 100) / 2;
+        that._$sliderItems.style.transform = `translateX(${value}%)`;
+      },
+      end() {
+        that._transform -= 50;
+        if (that._queue.length === 1) {
+          that._queue.shift();
+          that._hasTransition = false;
+          that._move(that._queue[0], 300);
+        } else if (that._queue.length > 1) {
+          that._queue.shift();
+          that._hasTransition = false;
+          that._move(that._queue[0], 300);
+        } else {
+          that._hasTransition = false;
+        }
+      },
+    });
+
+    /*this._$sliderItem.forEach(element => {
       const order = direction === 'next' ? +element.style.order - 1 : +element.style.order + 1;
       element.style.order = order;
     });
     const transformStep = direction === 'next' ? -this._transformStep : this._transformStep;
     this._transform += transformStep;
     if (forced) {
-      this._$wrapper.classList.add('slider__items_transition2');
+      this._$sliderItems.classList.add('slider__items_transition2');
     } else {
-      this._$wrapper.classList.add('slider__items_transition2');
+      this._$sliderItems.classList.add('slider__items_transition2');
     }
-    this._$wrapper.style.transform = `translateX(${this._transform}%)`;
-    //});
+    this._$sliderItems.style.transform = `translateX(${this._transform}%)`;
+    //});*/
 
     /*if (direction === 'next') {
       const positionMax = this._positionMin + this._itemsOnScreen - 1;
@@ -207,7 +267,7 @@ class SliderByItchief {
         this._transform += this._transformStep;
       }
     }
-    this._$wrapper.style.transform = `translateX(${this._transform}%)`;
+    this._$sliderItems.style.transform = `translateX(${this._transform}%)`;
     */
   }
 
@@ -215,12 +275,12 @@ class SliderByItchief {
   _eventHandler(e) {
     const target = e.target;
     this._autoplay('off');
-    console.log(target);
     if (target.classList.contains('slider__control')) {
       // при клике на кнопки влево и вправо
       e.preventDefault();
-      if (this._queue.length === 0) {
+      if (this._hasTransition) {
         this._queue.push(target.dataset.slide);
+      } else {
         this._move(target.dataset.slide);
       }
     } else if (target.dataset.slideTo) {
@@ -229,6 +289,7 @@ class SliderByItchief {
       this._moveTo(index);
     }
     this._autoplay();
+    console.log(this._queue);
   }
 
   _moveTo(index) {
@@ -252,8 +313,8 @@ class SliderByItchief {
   }
 
   _reset() {
-    const itemWidth = parseFloat(getComputedStyle(this._$items[0]).width);
-    const itemsWidth = parseFloat(getComputedStyle(this._$wrapper).width);
+    const itemWidth = parseFloat(getComputedStyle(this._$sliderItem[0]).width);
+    const itemsWidth = parseFloat(getComputedStyle(this._$sliderItems).width);
     const itemsDisplayed = Math.round(itemsWidth / itemWidth);
     if (itemsDisplayed === this._itemsOnScreen) {
       return;
@@ -265,15 +326,15 @@ class SliderByItchief {
     this._itemsWidth = itemsWidth;
     this._itemsOnScreen = itemsDisplayed;
     this._transformStep = 100 / itemsDisplayed;
-    this._$wrapper.classList.add('slider__items_off');
-    this._$wrapper.style = '';
-    this._$items.forEach($elem => {
+    this._$sliderItems.classList.add('slider__items_off');
+    this._$sliderItems.style = '';
+    this._$sliderItem.forEach($elem => {
       $elem.style = '';
     });
     window.setTimeout(() => {
-      this._$wrapper.classList.remove('slider__items_off');
+      this._$sliderItems.classList.remove('slider__items_off');
       this._items = [];
-      this._$items.forEach((element, position) => {
+      this._$sliderItem.forEach((element, position) => {
         this._items.push({ element, position, transform: 0 });
       });
       this._itemsOnBothSides();
@@ -294,10 +355,10 @@ class SliderByItchief {
     }
     window.addEventListener('resize', this._reset.bind(this));
 
-    this._$wrapper.addEventListener('transitionstart', () => {
+    this._$sliderItems.addEventListener('transitionstart', () => {
       console.log('transitionstart');
     });
-    this._$wrapper.addEventListener('transitionend', () => {
+    this._$sliderItems.addEventListener('transitionend', () => {
       console.log('transitionend');
       this._moveExtremeElement();
       this._hasTransition = false;
@@ -331,8 +392,8 @@ class SliderByItchief {
   _init($elem, config) {
     const $items = $elem.querySelectorAll('.slider__item');
     this._$elem = $elem;
-    this._$wrapper = $elem.querySelector('.slider__items');
-    this._$items = $items;
+    this._$sliderItems = $elem.querySelector('.slider__items');
+    this._$sliderItem = $items;
     this._$controls = {
       prev: $elem.querySelector('.slider__control[data-slide="prev"]'),
       next: $elem.querySelector('.slider__control[data-slide="next"]'),
@@ -340,18 +401,25 @@ class SliderByItchief {
     this._$indicators = $elem.querySelectorAll('.slider__indicators>li');
     this._config = config;
     this._itemWidth = parseFloat(getComputedStyle($items[0]).width);
-    this._itemsWidth = parseFloat(getComputedStyle(this._$wrapper).width);
+    this._itemsWidth = parseFloat(getComputedStyle(this._$sliderItems).width);
     this._itemsOnScreen = Math.round(this._itemsWidth / this._itemWidth);
     this._transformStep = 100 / this._itemsOnScreen;
 
+    if (!this._moveByOne) {
+      //this._transformStep = 100;
+    }
+
     $items.forEach((element, position) => {
-      element.style.order = position;
+      element.dataset.order = position;
+      element.dataset.translate = 0;
       this._items.push({ element, position, transform: 0 });
     });
     //this._itemsOnBothSides();
-    $items[$items.length - 1].style.order = -1;
-    this._transform = -this._transformStep;
-    this._$wrapper.style.transform = `translateX(${this._transform}%)`;
+    $items[$items.length - 1].dataset.order = -1;
+    $items[$items.length - 1].dataset.translate = -500;
+    $items[$items.length - 1].style.transform = `translateX(-500%)`;
+    //this._transform = -this._transformStep;
+    //this._$sliderItems.style.transform = `translateX(${this._transform}%)`;
 
     //
     if (this._config.infinite === false) {
@@ -362,9 +430,18 @@ class SliderByItchief {
 
   // public
   next() {
-    this._move('next', true);
-    this._move('next', true);
-    this._move('next', true);
+    this._move('next');
+    this._move('next');
+    this._move('next');
+    this._move('next');
+    this._move('next');
+    this._move('next');
+    this._move('next');
+    this._move('next');
+    this._move('next');
+    this._move('next');
+    this._move('next');
+    this._move('next');
   }
   prev() {
     this._move('prev', true);
