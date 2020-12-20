@@ -32,6 +32,10 @@ class SliderByItchief {
   _hasTransition = false;
   _queue = [];
   _moveByOne = false;
+  _durationDefault = 600;
+  _acceleration = 6;
+  _duration = this._durationDefault;
+  _durationProcess = this._durationDefault;
 
   constructor($elem, config) {
     this._init($elem, config);
@@ -39,13 +43,19 @@ class SliderByItchief {
   }
 
   // animate
-  _animate({ start, end, timing, draw, duration }) {
+  _animate({ start, end, timing, draw }) {
+    const that = this;
     start();
     this._hasTransition = true;
     let startTime = performance.now();
     requestAnimationFrame(function animate(time) {
+      if (that._durationProcess > that._duration) {
+        that._durationProcess -= 20;
+      } else {
+        that._durationProcess = that._duration;
+      }
       if (startTime > time) startTime = time;
-      let timeFraction = (time - startTime) / duration;
+      let timeFraction = (time - startTime) / that._durationProcess;
       if (timeFraction > 1) timeFraction = 1;
       let progress = timing(timeFraction);
       draw(progress);
@@ -80,25 +90,30 @@ class SliderByItchief {
     const $elements = this._getExtremeElementsByOrder();
     const count = this._$sliderItem.length;
     const minOrder = +$elements.$min.dataset.order;
+    const maxOrder = +$elements.$max.dataset.order;
     let translate = +$elements.$min.dataset.translate;
-    if (minOrder < -1) {
+    let maxOr2 = -2;
+    if (direction === 'next') {
+      maxOr2 = -1;
+    }
+    if (minOrder < maxOr2) {
       //this._transform += this._transformStep;
       $elements.$min.dataset.order = minOrder + count;
       translate += count * 100;
       $elements.$min.dataset.translate = translate;
       $elements.$min.style.transform = `translateX(${translate}%)`;
     }
-    /*if (this._itemsOnScreen - 1 >= extremeElements.max) {
-      this._$sliderItems.classList.remove('slider__items_transition');
-      this._transform += this._transformStep;
-      this._$sliderItems.style.transform = `translateX(${this._transform}%)`;
-      extremeElements.$min.style.order = this._itemsOnScreen;
-    } else if (extremeElements.min >= 0) {
-      this._$sliderItems.classList.remove('slider__items_transition');
-      this._transform -= this._transformStep;
-      this._$sliderItems.style.transform = `translateX(${this._transform}%)`;
-      extremeElements.$max.style.order = extremeElements.min - 1;
-    }*/
+    let maxOr1 = this._$sliderItem.length - 2;
+    if (direction === 'prev') {
+      maxOr1 = this._$sliderItem.length - 3;
+    }
+    if (maxOrder > maxOr1) {
+      let translateMax = +$elements.$max.dataset.translate;
+      $elements.$max.dataset.order = minOrder - 1;
+      translateMax -= count * 100;
+      $elements.$max.dataset.translate = translateMax;
+      $elements.$max.style.transform = `translateX(${translateMax}%)`;
+    }
   }
 
   /* _getIndex() {
@@ -163,45 +178,44 @@ class SliderByItchief {
   }
 
   // сдвиг слайда
-  _move(direction, duration = 1000) {
-    /*if (!forced) {*/
-
+  _move(direction) {
     if (!hasElementInVew(this._$elem) || this._hasTransition) {
       return;
     }
-
     this._hasTransition = true;
-
-    //const duration = 1000;
     const that = this;
 
     this._animate({
       start() {
         that._moveExtremeElement(direction);
-        that._$sliderItem.forEach($element => {
-          $element.dataset.order = +$element.dataset.order - 1;
-        });
+        if (direction === 'next') {
+          that._$sliderItem.forEach($element => {
+            $element.dataset.order = +$element.dataset.order - 1;
+          });
+        } else {
+          that._$sliderItem.forEach($element => {
+            $element.dataset.order = +$element.dataset.order + 1;
+          });
+        }
       },
-      duration: duration,
       timing(timeFraction) {
         return timeFraction;
       },
       draw(progress) {
-        const value = that._transform - (progress * 100) / 2;
+        const pr1 = progress * that._transformStep;
+        const value = direction === 'next' ? that._transform - pr1 : that._transform + pr1;
         that._$sliderItems.style.transform = `translateX(${value}%)`;
       },
       end() {
-        that._transform -= 50;
-        if (that._queue.length === 1) {
+        that._transform =
+          direction === 'next'
+            ? that._transform - that._transformStep
+            : that._transform + that._transformStep;
+        that._hasTransition = false;
+        if (that._queue.length > 0) {
+          const direct = that._queue[0];
           that._queue.shift();
-          that._hasTransition = false;
-          that._move(that._queue[0], 300);
-        } else if (that._queue.length > 1) {
-          that._queue.shift();
-          that._hasTransition = false;
-          that._move(that._queue[0], 300);
-        } else {
-          that._hasTransition = false;
+          that._move(direct);
         }
       },
     });
@@ -279,8 +293,10 @@ class SliderByItchief {
       // при клике на кнопки влево и вправо
       e.preventDefault();
       if (this._hasTransition) {
+        this._duration = this._durationDefault / this._acceleration;
         this._queue.push(target.dataset.slide);
       } else {
+        this._duration = this._durationDefault;
         this._move(target.dataset.slide);
       }
     } else if (target.dataset.slideTo) {
@@ -354,22 +370,6 @@ class SliderByItchief {
       });
     }
     window.addEventListener('resize', this._reset.bind(this));
-
-    this._$sliderItems.addEventListener('transitionstart', () => {
-      console.log('transitionstart');
-    });
-    this._$sliderItems.addEventListener('transitionend', () => {
-      console.log('transitionend');
-      this._moveExtremeElement();
-      this._hasTransition = false;
-      //_moveExtremeElement();
-      if (this._queue.length > 0) {
-        this._queue.shift();
-        if (this._queue.length > 0) {
-          this._move(this._queue[0]);
-        }
-      }
-    });
   }
 
   _autoplay(action) {
@@ -416,10 +416,10 @@ class SliderByItchief {
     });
     //this._itemsOnBothSides();
     $items[$items.length - 1].dataset.order = -1;
-    $items[$items.length - 1].dataset.translate = -500;
-    $items[$items.length - 1].style.transform = `translateX(-500%)`;
-    //this._transform = -this._transformStep;
-    //this._$sliderItems.style.transform = `translateX(${this._transform}%)`;
+    $items[$items.length - 1].dataset.translate = -$items.length * 100;
+    $items[$items.length - 1].style.transform = `translateX(${
+      $items[$items.length - 1].dataset.translate
+    }%)`;
 
     //
     if (this._config.infinite === false) {
