@@ -1,468 +1,513 @@
 'use strict';
 
-const hasTouchDevice = () => {
-  return !!('ontouchstart' in window || navigator.maxTouchPoints);
-};
+const SELECTOR_ITEM = '.slider__item';
+const SELECTOR_ITEMS = '.slider__items';
+const SELECTOR_WRAPPER = '.slider__wrapper';
+const SELECTOR_PREV = '.slider__control[data-slide="prev"]';
+const SELECTOR_NEXT = '.slider__control[data-slide="next"]';
+const SELECTOR_INDICATOR = '.slider__indicators>li';
 
-const hasElementInVew = $elem => {
+const SLIDER_TRANSITION_OFF = 'slider_disable-transition';
+const CLASS_CONTROL = 'slider__control';
+const CLASS_CONTROL_HIDE = 'slider__control_hide';
+const CLASS_ITEM_ACTIVE = 'slider__item_active';
+const CLASS_INDICATOR_ACTIVE = 'active';
+
+function hasTouchDevice() {
+  return !!('ontouchstart' in window || navigator.maxTouchPoints);
+}
+
+function hasElementInVew($elem) {
   const rect = $elem.getBoundingClientRect();
   const windowHeight = window.innerHeight || document.documentElement.clientHeight;
   const windowWidth = window.innerWidth || document.documentElement.clientWidth;
   const vertInView = rect.top <= windowHeight && rect.top + rect.height >= 0;
   const horInView = rect.left <= windowWidth && rect.left + rect.width >= 0;
   return vertInView && horInView;
-};
+}
 
 class SliderByItchief {
-  _positionMin = 0; // позиция активного элемента (минимальная)
-  _items = []; // массив items
-  _itemsWidth = 0; // ширина всех items
-  _itemsOnScreen = 0; // количество одновременно отображаемых items
-  _itemWidth = 0; // ширина одного item
+  // configuration of the slider
+  _config = {};
+  // slider properties
+  _widthItem = 0;
+  _widthWrapper = 0;
+  _itemsInVisibleArea = 0;
   _transform = 0; // текущее значение трансформации
   _transformStep = 0; // значение шага трансформации
   _intervalId = null;
-  //_responsive = {};
-  _config = {}; // конфигурация слайдера
-  _$elem; // базовый элемент слайдера
-  _$sliderItems; // элемент, в котором находятся items
-  _$sliderItem; // коллекция элементов (items)
-  _$controls; // элементы управления слайдером
-  _$indicators; // индикаторы
-  _hasTransition = false;
-  _queue = [];
-  _moveByOne = false;
-  _durationDefault = 600;
-  _acceleration = 6;
-  _duration = this._durationDefault;
-  _durationProcess = this._durationDefault;
+  // elements of slider
+  _$root = null; // root element of slider (default ".slider__item")
+  _$wrapper = null; // element with class ".slider__wrapper"
+  _$items = null; // element with class ".slider__items"
+  _$itemList = null; // elements with class ".slider__item"
+  _$controlPrev = null; // element with class .slider__control[data-slide="prev"]
+  _$controlNext = null; // element with class .slider__control[data-slide="next"]
+  _$indicatorList = null; // индикаторы
+  // min and min order
+  _minOrder = 0;
+  _maxOrder = 0;
+  // items with min and max order
+  _$itemByMinOrder = null;
+  _$itemByMaxOrder = null;
+  // min and max value of translate
+  _minTranslate = 0;
+  _maxTranslate = 0;
+  // default slider direction
+  _direction = 'next';
+  // determines whether the position of item needs to be determined
+  _updateItemPositionFlag = false;
+  _activeItems = [];
+  _isTouchDevice = hasTouchDevice();
 
+  // constructor
   constructor($elem, config) {
     this._init($elem, config);
     this._addEventListener();
   }
 
-  // animate
-  _animate({ start, end, timing, draw }) {
-    const that = this;
-    start();
-    this._hasTransition = true;
-    let startTime = performance.now();
-    requestAnimationFrame(function animate(time) {
-      if (that._durationProcess > that._duration) {
-        that._durationProcess -= 20;
-      } else {
-        that._durationProcess = that._duration;
-      }
-      if (startTime > time) startTime = time;
-      let timeFraction = (time - startTime) / that._durationProcess;
-      if (timeFraction > 1) timeFraction = 1;
-      let progress = timing(timeFraction);
-      draw(progress);
-      if (timeFraction < 1) {
-        requestAnimationFrame(animate);
-      } else {
-        end();
-      }
-    });
-  }
-
-  // получить крайние элементы
-  _getExtremeElementsByOrder() {
-    let min = 0;
-    let max = 0;
-    let $min, $max;
-    this._$sliderItem.forEach($elem => {
-      const order = +$elem.dataset.order;
-      if (order <= min) {
-        min = order;
-        $min = $elem;
-      } else if (order >= max) {
-        max = order;
-        $max = $elem;
+  // initial setup of slider
+  _init($root, config) {
+    // elements of slider
+    this._$root = $root;
+    this._$itemList = $root.querySelectorAll(SELECTOR_ITEM);
+    this._$items = $root.querySelector(SELECTOR_ITEMS);
+    this._$wrapper = $root.querySelector(SELECTOR_WRAPPER);
+    this._$controlPrev = $root.querySelector(SELECTOR_PREV);
+    this._$controlNext = $root.querySelector(SELECTOR_NEXT);
+    this._$indicatorList = $root.querySelectorAll(SELECTOR_INDICATOR);
+    // create some constants
+    const $itemList = this._$itemList;
+    const widthItem = parseFloat(getComputedStyle($itemList[0]).width);
+    const widthWrapper = parseFloat(getComputedStyle(this._$wrapper).width);
+    const itemsInVisibleArea = Math.round(widthWrapper / widthItem);
+    // initial setting properties
+    this._widthItem = widthItem;
+    this._widthWrapper = widthWrapper;
+    this._itemsInVisibleArea = itemsInVisibleArea;
+    this._transformStep = 100 / itemsInVisibleArea;
+    this._config = config;
+    // initial setting order and translate items
+    $itemList.forEach(($item, position) => {
+      $item.dataset.index = position;
+      $item.dataset.order = position;
+      $item.dataset.translate = 0;
+      if (position < itemsInVisibleArea) {
+        this._activeItems.push(position);
       }
     });
-    return { $min, $max };
-  }
-
-  // переместить крайний элемент
-  _moveExtremeElement(direction) {
-    const $elements = this._getExtremeElementsByOrder();
-    const count = this._$sliderItem.length;
-    const minOrder = +$elements.$min.dataset.order;
-    const maxOrder = +$elements.$max.dataset.order;
-    let translate = +$elements.$min.dataset.translate;
-    let maxOr2 = -2;
-    if (direction === 'next') {
-      maxOr2 = -1;
+    this._updateClassForActiveItems();
+    // hide prev arrow for non-infinite slider
+    if (!this._config.loop) {
+      if (this._$controlPrev) {
+        this._$controlPrev.classList.add(CLASS_CONTROL_HIDE);
+      }
+      return;
     }
-    if (minOrder < maxOr2) {
-      //this._transform += this._transformStep;
-      $elements.$min.dataset.order = minOrder + count;
-      translate += count * 100;
-      $elements.$min.dataset.translate = translate;
-      $elements.$min.style.transform = `translateX(${translate}%)`;
-    }
-    let maxOr1 = this._$sliderItem.length - 2;
-    if (direction === 'prev') {
-      maxOr1 = this._$sliderItem.length - 3;
-    }
-    if (maxOrder > maxOr1) {
-      let translateMax = +$elements.$max.dataset.translate;
-      $elements.$max.dataset.order = minOrder - 1;
-      translateMax -= count * 100;
-      $elements.$max.dataset.translate = translateMax;
-      $elements.$max.style.transform = `translateX(${translateMax}%)`;
-    }
-  }
-
-  /* _getIndex() {
-    const extreme = { min: 0, max: 0 };
-    this._items.forEach((item, index) => {
-      if (item.position < this._items[extreme.min].position) {
-        extreme.min = index;
-      }
-      if (item.position > this._items[extreme.max].position) {
-        extreme.max = index;
-      }
-    });
-    return extreme;
-  }
-
-  _getElementByPosition(position) {
-    let element;
-    this._items.forEach(item => {
-      if (item.position === position) {
-        element = item.element;
-      }
-    });
-    return element;
-  }*/
-
-  _updateIndicators() {
-    this._$sliderItem.forEach(($element, index) => {
-      if ($element.classList.contains('in-view')) {
-        this._$indicators[index].classList.add('active');
-      } else {
-        this._$indicators[index].classList.remove('active');
-      }
-    });
-  }
-
-  _itemsOnBothSides() {
-    const items = this._items;
-    const $inView = this._$sliderItems.querySelectorAll('.slider__item.in-view');
-    const positionMax = this._positionMin + this._itemsOnScreen - 1;
-    const itemMax = items[this._getIndex().max];
-    const itemMin = items[this._getIndex().min];
-    // удаление у items класса in-view
-    $inView.forEach(element => {
-      element.classList.remove('in-view');
-    });
-    // добавление класса in-view к отображаемым items
-    for (let i = this._positionMin; i < this._positionMin + this._itemsOnScreen; i++) {
-      this._getElementByPosition(i).classList.add('in-view');
-    }
+    // translate last item before first
+    const count = $itemList.length - 1;
+    const translate = -$itemList.length * 100;
+    $itemList[count].dataset.order = -1;
+    $itemList[count].dataset.translate = -$itemList.length * 100;
+    $itemList[count].style.transform = `translateX(${translate}%)`;
+    // update values of extreme properties
+    this._updateExtremeProperties();
     this._updateIndicators();
-    if (this._positionMin === itemMin.position) {
-      // добавление элемента слева
-      itemMax.position = itemMin.position - 1;
-      itemMax.transform -= items.length * 100;
-      itemMax.element.style.transform = `translateX(${itemMax.transform}%)`;
-    } else if (positionMax === itemMax.position) {
-      // добавление элемента справа
-      itemMin.position = itemMax.position + 1;
-      itemMin.transform += items.length * 100;
-      itemMin.element.style.transform = `translateX(${itemMin.transform}%)`;
-    }
-  }
-
-  // сдвиг слайда
-  _move(direction) {
-    if (!hasElementInVew(this._$elem) || this._hasTransition) {
-      return;
-    }
-    this._hasTransition = true;
-    const that = this;
-
-    this._animate({
-      start() {
-        that._moveExtremeElement(direction);
-        if (direction === 'next') {
-          that._$sliderItem.forEach($element => {
-            $element.dataset.order = +$element.dataset.order - 1;
-          });
-        } else {
-          that._$sliderItem.forEach($element => {
-            $element.dataset.order = +$element.dataset.order + 1;
-          });
-        }
-      },
-      timing(timeFraction) {
-        return timeFraction;
-      },
-      draw(progress) {
-        const pr1 = progress * that._transformStep;
-        const value = direction === 'next' ? that._transform - pr1 : that._transform + pr1;
-        that._$sliderItems.style.transform = `translateX(${value}%)`;
-      },
-      end() {
-        that._transform =
-          direction === 'next'
-            ? that._transform - that._transformStep
-            : that._transform + that._transformStep;
-        that._hasTransition = false;
-        if (that._queue.length > 0) {
-          const direct = that._queue[0];
-          that._queue.shift();
-          that._move(direct);
-        }
-      },
-    });
-
-    /*this._$sliderItem.forEach(element => {
-      const order = direction === 'next' ? +element.style.order - 1 : +element.style.order + 1;
-      element.style.order = order;
-    });
-    const transformStep = direction === 'next' ? -this._transformStep : this._transformStep;
-    this._transform += transformStep;
-    if (forced) {
-      this._$sliderItems.classList.add('slider__items_transition2');
-    } else {
-      this._$sliderItems.classList.add('slider__items_transition2');
-    }
-    this._$sliderItems.style.transform = `translateX(${this._transform}%)`;
-    //});*/
-
-    /*if (direction === 'next') {
-      const positionMax = this._positionMin + this._itemsOnScreen - 1;
-      if (this._config.infinite === false) {
-        if (positionMax >= itemMax.position) {
-          return;
-        }
-        if (positionMax >= itemMax.position - 1) {
-          this._$controls.next.classList.add('slider__control_hide');
-        } else {
-          this._$controls.prev.classList.remove('slider__control_hide');
-        }
-        this._positionMin++;
-        this._transform -= this._transformStep;
-      } else {
-        this._positionMin++;
-        const positionMax = this._positionMin + this._itemsOnScreen - 1;
-        if (positionMax > itemMax.position) {
-          itemMin.position = itemMax.position + 1;
-          itemMin.transform += items.length * 100;
-          itemMin.element.style.transform = `translateX(${itemMin.transform}%)`;
-        }
-        this._itemsOnBothSides();
-        this._transform -= this._transformStep;
-      }
-    } else {
-      if (this._config.infinite === false) {
-        if (this._positionMin <= itemMin.position) {
-          return;
-        }
-        if (this._positionMin <= itemMin.position + 1) {
-          this._$controls.prev.classList.add('slider__control_hide');
-        } else {
-          this._$controls.next.classList.remove('slider__control_hide');
-        }
-        this._positionMin--;
-        this._transform += this._transformStep;
-      } else {
-        this._positionMin--;
-        if (this._positionMin < itemMin.position) {
-          itemMax.position = itemMin.position - 1;
-          itemMax.transform -= items.length * 100;
-          itemMax.element.style.transform = `translateX(${itemMax.transform}%)`;
-        }
-        this._itemsOnBothSides();
-        this._transform += this._transformStep;
-      }
-    }
-    this._$sliderItems.style.transform = `translateX(${this._transform}%)`;
-    */
-  }
-
-  // обработчик click для слайдера
-  _eventHandler(e) {
-    const target = e.target;
-    this._autoplay('off');
-    if (target.classList.contains('slider__control')) {
-      // при клике на кнопки влево и вправо
-      e.preventDefault();
-      if (this._hasTransition) {
-        this._duration = this._durationDefault / this._acceleration;
-        this._queue.push(target.dataset.slide);
-      } else {
-        this._duration = this._durationDefault;
-        this._move(target.dataset.slide);
-      }
-    } else if (target.dataset.slideTo) {
-      // при клике на индикаторы
-      const index = +target.dataset.slideTo;
-      this._moveTo(index);
-    }
+    // calling _autoplay
     this._autoplay();
-    console.log(this._queue);
-  }
-
-  _moveTo(index) {
-    let minIndex = this._$indicators.length - 1;
-    this._$indicators.forEach(element => {
-      if (element.classList.contains('active')) {
-        const slideTo = +element.dataset.slideTo;
-        if (slideTo < minIndex) {
-          minIndex = slideTo;
-        }
-      }
-    });
-    const diff = index - minIndex;
-    if (diff === 0) {
-      return;
-    }
-    const direction = diff > 0 ? 'next' : 'prev';
-    for (let i = 1; i <= Math.abs(diff); i++) {
-      this._move(direction, true);
-    }
-  }
-
-  _reset() {
-    const itemWidth = parseFloat(getComputedStyle(this._$sliderItem[0]).width);
-    const itemsWidth = parseFloat(getComputedStyle(this._$sliderItems).width);
-    const itemsDisplayed = Math.round(itemsWidth / itemWidth);
-    if (itemsDisplayed === this._itemsOnScreen) {
-      return;
-    }
-    this._autoplay('off');
-    this._positionMin = 0;
-    this._transform = 0;
-    this._itemWidth = itemWidth;
-    this._itemsWidth = itemsWidth;
-    this._itemsOnScreen = itemsDisplayed;
-    this._transformStep = 100 / itemsDisplayed;
-    this._$sliderItems.classList.add('slider__items_off');
-    this._$sliderItems.style = '';
-    this._$sliderItem.forEach($elem => {
-      $elem.style = '';
-    });
-    window.setTimeout(() => {
-      this._$sliderItems.classList.remove('slider__items_off');
-      this._items = [];
-      this._$sliderItem.forEach((element, position) => {
-        this._items.push({ element, position, transform: 0 });
-      });
-      this._itemsOnBothSides();
-      this._autoplay();
-    }, 200);
   }
 
   // подключения обработчиков событий для слайдера
   _addEventListener() {
-    this._$elem.addEventListener('click', this._eventHandler.bind(this));
-    if (this._config.autoplay === true) {
-      this._$elem.addEventListener('mouseenter', () => {
-        this._autoplay('off');
+    const $root = this._$root;
+
+    // on click
+    $root.addEventListener('click', this._eventHandler.bind(this));
+
+    // on hover
+    if (this._config.autoplay && this._config.pauseOnHover) {
+      $root.addEventListener('mouseenter', () => {
+        this._autoplay('stop');
       });
-      this._$elem.addEventListener('mouseleave', () => {
+      $root.addEventListener('mouseleave', () => {
         this._autoplay();
       });
     }
-    window.addEventListener('resize', this._reset.bind(this));
+
+    // on resize
+    if (this._config.refresh) {
+      window.addEventListener('resize', () => {
+        window.requestAnimationFrame(this._refresh.bind(this));
+      });
+    }
+
+    // on transitionstart and transitionend
+    if (this._config.loop) {
+      this._$items.addEventListener('transitionstart', () => {
+        // transitionstart
+        this._updateItemPositionFlag = true;
+        window.requestAnimationFrame(this._updateItemPosition.bind(this));
+      });
+      this._$items.addEventListener('transitionend', () => {
+        // transitionend
+        this._updateItemPositionFlag = false;
+      });
+    }
+
+    // on touchstart and touchend
+    if (this._isTouchDevice && this._config.swipe) {
+      $root.addEventListener('touchstart', e => {
+        this._touchStartCoord = e.changedTouches[0].clientX;
+      });
+      $root.addEventListener('touchend', e => {
+        const touchEndCoord = e.changedTouches[0].clientX;
+        const delta = touchEndCoord - this._touchStartCoord;
+        if (delta > 50) {
+          this._moveToPrev();
+        } else if (delta < -50) {
+          this._moveToNext();
+        }
+      });
+    }
+
+    // on mousedown and mouseup
+    if (!this._isTouchDevice && this._config.swipe) {
+      $root.addEventListener('mousedown', e => {
+        this._touchStartCoord = e.clientX;
+      });
+      $root.addEventListener('mouseup', e => {
+        const touchEndCoord = e.clientX;
+        const delta = touchEndCoord - this._touchStartCoord;
+        if (delta > 50) {
+          this._moveToPrev();
+        } else if (delta < -50) {
+          this._moveToNext();
+        }
+      });
+    }
   }
 
-  _autoplay(action) {
-    if (this._config.autoplay !== true) {
+  // update values of extreme properties
+  _updateExtremeProperties() {
+    const $itemList = this._$itemList;
+    this._minOrder = +$itemList[0].dataset.order;
+    this._maxOrder = this._minOrder;
+    this._$itemByMinOrder = $itemList[0];
+    this._$itemByMaxOrder = $itemList[0];
+    this._minTranslate = +$itemList[0].dataset.translate;
+    this._maxTranslate = this._minTranslate;
+    $itemList.forEach($item => {
+      const order = +$item.dataset.order;
+      if (order < this._minOrder) {
+        this._minOrder = order;
+        this._$itemByMinOrder = $item;
+        this._minTranslate = +$item.dataset.translate;
+      } else if (order > this._maxOrder) {
+        this._maxOrder = order;
+        this._$itemByMaxOrder = $item;
+        this._minTranslate = +$item.dataset.translate;
+      }
+    });
+  }
+
+  // update position of item
+  _updateItemPosition() {
+    if (!this._updateItemPositionFlag) {
       return;
     }
-    if (action === 'off') {
+    const $wrapper = this._$wrapper;
+    const $wrapperClientRect = $wrapper.getBoundingClientRect();
+    const widthHalfItem = $wrapperClientRect.width / this._itemsInVisibleArea / 2;
+    const count = this._$itemList.length;
+    if (this._direction === 'next') {
+      const wrapperLeft = $wrapperClientRect.left;
+      const $min = this._$itemByMinOrder;
+      let translate = this._minTranslate;
+      const clientRect = $min.getBoundingClientRect();
+      if (clientRect.right < wrapperLeft - widthHalfItem) {
+        $min.dataset.order = this._minOrder + count;
+        translate += count * 100;
+        $min.dataset.translate = translate;
+        $min.style.transform = `translateX(${translate}%)`;
+        // update values of extreme properties
+        this._updateExtremeProperties();
+      }
+    } else {
+      const wrapperRight = $wrapperClientRect.right;
+      const $max = this._$itemByMaxOrder;
+      let translate = this._maxTranslate;
+      const clientRect = $max.getBoundingClientRect();
+      if (clientRect.left > wrapperRight + widthHalfItem) {
+        $max.dataset.order = this._maxOrder - count;
+        translate -= count * 100;
+        $max.dataset.translate = translate;
+        $max.style.transform = `translateX(${translate}%)`;
+        // update values of extreme properties
+        this._updateExtremeProperties();
+      }
+    }
+    // updating...
+    requestAnimationFrame(this._updateItemPosition.bind(this));
+  }
+
+  // _updateClassForActiveItems
+  _updateClassForActiveItems() {
+    const activeItems = this._activeItems;
+    this._$itemList.forEach($item => {
+      const index = +$item.dataset.index;
+      if (activeItems.includes(index)) {
+        $item.classList.add(CLASS_ITEM_ACTIVE);
+      } else {
+        $item.classList.remove(CLASS_ITEM_ACTIVE);
+      }
+    });
+  }
+
+  // _updateIndicators
+  _updateIndicators() {
+    const $indicatorList = this._$indicatorList;
+    if (!$indicatorList.length) {
+      return;
+    }
+    this._$itemList.forEach(($item, index) => {
+      if ($item.classList.contains(CLASS_ITEM_ACTIVE)) {
+        $indicatorList[index].classList.add(CLASS_INDICATOR_ACTIVE);
+      } else {
+        $indicatorList[index].classList.remove(CLASS_INDICATOR_ACTIVE);
+      }
+    });
+  }
+
+  // move slides
+  _move() {
+    if (!hasElementInVew(this._$root)) {
+      return;
+    }
+
+    const step = this._direction === 'next' ? -this._transformStep : this._transformStep;
+    const transform = this._transform + step;
+
+    if (!this._config.loop) {
+      const endTransformValue =
+        this._transformStep * (this._$itemList.length - this._itemsInVisibleArea);
+      if (transform < -endTransformValue || transform > 0) {
+        return;
+      }
+      this._$controlPrev.classList.remove(CLASS_CONTROL_HIDE);
+      this._$controlNext.classList.remove(CLASS_CONTROL_HIDE);
+      if (transform === -endTransformValue) {
+        this._$controlNext.classList.add(CLASS_CONTROL_HIDE);
+      } else if (transform === 0) {
+        this._$controlPrev.classList.add(CLASS_CONTROL_HIDE);
+      }
+    }
+
+    const activeIndex = [];
+    if (this._direction === 'next') {
+      this._activeItems.forEach(index => {
+        let newIndex = ++index;
+        if (newIndex > this._$itemList.length - 1) {
+          newIndex -= this._$itemList.length;
+        }
+        activeIndex.push(newIndex);
+      });
+    } else {
+      this._activeItems.forEach(index => {
+        let newIndex = --index;
+        if (newIndex < 0) {
+          newIndex += this._$itemList.length;
+        }
+        activeIndex.push(newIndex);
+      });
+    }
+    this._activeItems = activeIndex;
+    this._updateClassForActiveItems();
+    this._updateIndicators();
+
+    this._transform = transform;
+    this._$items.style.transform = `translateX(${transform}%)`;
+  }
+
+  // _moveToNext
+  _moveToNext() {
+    this._direction = 'next';
+    this._move();
+  }
+
+  // _moveToPrev
+  _moveToPrev() {
+    this._direction = 'prev';
+    this._move();
+  }
+
+  // _moveTo
+  _moveTo(index) {
+    const $indicatorList = this._$indicatorList;
+    let nearestIndex = null;
+    let diff = null;
+    $indicatorList.forEach($indicator => {
+      if ($indicator.classList.contains(CLASS_INDICATOR_ACTIVE)) {
+        const slideTo = +$indicator.dataset.slideTo;
+        if (diff === null) {
+          nearestIndex = slideTo;
+          diff = Math.abs(index - nearestIndex);
+        } else {
+          if (Math.abs(index - slideTo) < diff) {
+            nearestIndex = slideTo;
+            diff = Math.abs(index - nearestIndex);
+          }
+        }
+      }
+    });
+    diff = index - nearestIndex;
+    if (diff === 0) {
+      return;
+    }
+    this._direction = diff > 0 ? 'next' : 'prev';
+    for (let i = 1; i <= Math.abs(diff); i++) {
+      this._move();
+    }
+  }
+
+  // обработчик click для слайдера
+  _eventHandler(e) {
+    const $target = e.target;
+    this._autoplay('stop');
+    if ($target.classList.contains(CLASS_CONTROL)) {
+      // при клике на кнопки влево и вправо
+      e.preventDefault();
+      this._direction = $target.dataset.slide;
+      this._move();
+    } else if ($target.dataset.slideTo) {
+      // при клике на индикаторы
+      const index = +$target.dataset.slideTo;
+      this._moveTo(index);
+    }
+    this._autoplay();
+  }
+
+  // _autoplay
+  _autoplay(action) {
+    if (!this._config.autoplay) {
+      return;
+    }
+    if (action === 'stop') {
       clearInterval(this._intervalId);
       this._intervalId = null;
       return;
     }
     if (this._intervalId === null) {
       this._intervalId = setInterval(() => {
-        this._move('next');
-      }, this._config.autoplaySpeed);
+        this._direction = 'next';
+        this._move();
+      }, this._config.interval);
     }
   }
 
-  // первичная настройка слайдера
-  _init($elem, config) {
-    const $items = $elem.querySelectorAll('.slider__item');
-    this._$elem = $elem;
-    this._$sliderItems = $elem.querySelector('.slider__items');
-    this._$sliderItem = $items;
-    this._$controls = {
-      prev: $elem.querySelector('.slider__control[data-slide="prev"]'),
-      next: $elem.querySelector('.slider__control[data-slide="next"]'),
-    };
-    this._$indicators = $elem.querySelectorAll('.slider__indicators>li');
-    this._config = config;
-    this._itemWidth = parseFloat(getComputedStyle($items[0]).width);
-    this._itemsWidth = parseFloat(getComputedStyle(this._$sliderItems).width);
-    this._itemsOnScreen = Math.round(this._itemsWidth / this._itemWidth);
-    this._transformStep = 100 / this._itemsOnScreen;
+  // _refresh
+  _refresh() {
+    // create some constants
+    const $itemList = this._$itemList;
+    const widthItem = parseFloat(getComputedStyle($itemList[0]).width);
+    const widthWrapper = parseFloat(getComputedStyle(this._$wrapper).width);
+    const itemsInVisibleArea = Math.round(widthWrapper / widthItem);
 
-    if (!this._moveByOne) {
-      //this._transformStep = 100;
+    if (itemsInVisibleArea === this._itemsInVisibleArea) {
+      return;
     }
 
-    $items.forEach((element, position) => {
-      element.dataset.order = position;
-      element.dataset.translate = 0;
-      this._items.push({ element, position, transform: 0 });
+    this._autoplay('stop');
+
+    this._$items.classList.add(SLIDER_TRANSITION_OFF);
+    this._$items.style.transform = 'translateX(0)';
+
+    // setting properties after reset
+    this._widthItem = widthItem;
+    this._widthWrapper = widthWrapper;
+    this._itemsInVisibleArea = itemsInVisibleArea;
+    this._transform = 0;
+    this._transformStep = 100 / itemsInVisibleArea;
+    this._updateItemPositionFlag = false;
+    this._activeItems = [];
+
+    // setting order and translate items after reset
+    $itemList.forEach(($item, position) => {
+      $item.dataset.index = position;
+      $item.dataset.order = position;
+      $item.dataset.translate = 0;
+      $item.style.transform = 'translateX(0)';
+      if (position < itemsInVisibleArea) {
+        this._activeItems.push(position);
+      }
     });
-    //this._itemsOnBothSides();
-    $items[$items.length - 1].dataset.order = -1;
-    $items[$items.length - 1].dataset.translate = -$items.length * 100;
-    $items[$items.length - 1].style.transform = `translateX(${
-      $items[$items.length - 1].dataset.translate
-    }%)`;
 
-    //
-    if (this._config.infinite === false) {
-      this._$controls.prev.classList.add('slider__control_hide');
+    this._updateClassForActiveItems();
+
+    window.requestAnimationFrame(() => {
+      console.log(this);
+      this._$items.classList.remove(SLIDER_TRANSITION_OFF);
+    });
+
+    // hide prev arrow for non-infinite slider
+    if (!this._config.loop) {
+      if (this._$controlPrev) {
+        this._$controlPrev.classList.add(CLASS_CONTROL_HIDE);
+      }
+      return;
     }
-    //this._autoplay();
+
+    // translate last item before first
+    const count = $itemList.length - 1;
+    const translate = -$itemList.length * 100;
+    $itemList[count].dataset.order = -1;
+    $itemList[count].dataset.translate = -$itemList.length * 100;
+    $itemList[count].style.transform = `translateX(${translate}%)`;
+    // update values of extreme properties
+    this._updateExtremeProperties();
+    this._updateIndicators();
+    // calling _autoplay
+    this._autoplay();
   }
 
   // public
   next() {
-    this._move('next');
-    this._move('next');
-    this._move('next');
-    this._move('next');
-    this._move('next');
-    this._move('next');
-    this._move('next');
-    this._move('next');
-    this._move('next');
-    this._move('next');
-    this._move('next');
-    this._move('next');
+    this._moveToNext();
   }
   prev() {
-    this._move('prev', true);
+    this._moveToPrev();
+  }
+  moveTo(index) {
+    this._moveTo(index);
+  }
+  refresh() {
+    this._refresh();
   }
 }
 
-/*document.querySelectorAll('[data-slider="sliderbyitchief"]').forEach($element => {
-  const dataset = $element.dataset;
-  const infinite = dataset.infinite === 'true' ? true : false;
-  const autoplay = dataset.autoplay === 'true' ? true : false;
-  let autoplaySpeed = dataset.autoplayspeed ? parseInt(dataset.autoplayspeed) : 5000;
+/*document.querySelectorAll('[data-slider="chiefslider"]').forEach($slider => {
+  const dataset = $slider.dataset;
+  const loop = dataset.loop ? true : false;
+  const autoplay = dataset.autoplay ? true : false;
+  const interval = dataset.interval ? parseInt(dataset.interval) : 5000;
+  const pauseOnHover = dataset.pauseOnHover ? true : false;
   new SliderByItchief($element, {
-    infinite: infinite,
+    loop: loop,
     autoplay: autoplay,
-    autoplaySpeed: autoplaySpeed,
+    interval: interval,
+    pauseOnHover: pauseOnHover,
   });
 });*/
 
-const $slider = document.querySelector('[data-slider="sliderbyitchief"]');
+const $slider = document.querySelector('[data-slider="chiefslider"]');
 const slider = new SliderByItchief($slider, {
-  /*infinite: infinite,
-  autoplay: autoplay,
-  autoplaySpeed: autoplaySpeed,*/
+  loop: true, // whether to enable infinity loop (default: true)
+  autoplay: false, // whether to enable autoplay (default: false)
+  interval: 500, // autoplay interval in milliseconds (default: 5000)
+  pauseOnHover: true, // whether to stop autoplay while a slider is hovered
+  refresh: true, // should the slider be updated when the viewport is resized
+  swipe: false, // enable swiping
 });
+
+// perPage
+// perMove
+// pagination

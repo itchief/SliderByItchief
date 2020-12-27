@@ -1,488 +1,513 @@
 'use strict';
 
-var self = this || {};
-try {
-  self.WeakSet = WeakSet;
-} catch (t) {
-  !(function (e) {
-    var s = new e(),
-      t = n.prototype;
-    function n(t) {
-      'use strict';
-      s.set(this, new e()), t && t.forEach(this.add, this);
-    }
-    (t.add = function (t) {
-      return s.get(this).set(t, 1), this;
-    }),
-      (t.delete = function (t) {
-        return s.get(this).delete(t);
-      }),
-      (t.has = function (t) {
-        return s.get(this).has(t);
-      }),
-      (self.WeakSet = n);
-  })(WeakMap);
-}
+const SELECTOR_ITEM = '.slider__item';
+const SELECTOR_ITEMS = '.slider__items';
+const SELECTOR_WRAPPER = '.slider__wrapper';
+const SELECTOR_PREV = '.slider__control[data-slide="prev"]';
+const SELECTOR_NEXT = '.slider__control[data-slide="next"]';
+const SELECTOR_INDICATOR = '.slider__indicators>li';
 
-if (window.NodeList && !NodeList.prototype.forEach) {
-  NodeList.prototype.forEach = function (callback, thisArg) {
-    thisArg = thisArg || window;
-    for (var i = 0; i < this.length; i++) {
-      callback.call(thisArg, this[i], i, this);
-    }
-  };
-}
+const SLIDER_TRANSITION_OFF = 'slider_disable-transition';
+const CLASS_CONTROL = 'slider__control';
+const CLASS_CONTROL_HIDE = 'slider__control_hide';
+const CLASS_ITEM_ACTIVE = 'slider__item_active';
+const CLASS_INDICATOR_ACTIVE = 'active';
 
-function _instanceof(left, right) {
-  if (
-    right != null &&
-    typeof Symbol !== 'undefined' &&
-    right[Symbol.hasInstance]
-  ) {
-    return !!right[Symbol.hasInstance](left);
-  } else {
-    return left instanceof right;
-  }
-}
-
-function _classCallCheck(instance, Constructor) {
-  if (!_instanceof(instance, Constructor)) {
-    throw new TypeError('Cannot call a class as a function');
-  }
-}
-
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ('value' in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, descriptor.key, descriptor);
-  }
-}
-
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  return Constructor;
-}
-
-function _classPrivateFieldSet(receiver, privateMap, value) {
-  var descriptor = privateMap.get(receiver);
-  if (!descriptor) {
-    throw new TypeError('attempted to set private field on non-instance');
-  }
-  if (descriptor.set) {
-    descriptor.set.call(receiver, value);
-  } else {
-    if (!descriptor.writable) {
-      throw new TypeError('attempted to set read only private field');
-    }
-    descriptor.value = value;
-  }
-  return value;
-}
-
-function _classPrivateFieldGet(receiver, privateMap) {
-  var descriptor = privateMap.get(receiver);
-  if (!descriptor) {
-    throw new TypeError('attempted to get private field on non-instance');
-  }
-  if (descriptor.get) {
-    return descriptor.get.call(receiver);
-  }
-  return descriptor.value;
-}
-
-function _classPrivateMethodGet(receiver, privateSet, fn) {
-  if (!privateSet.has(receiver)) {
-    throw new TypeError('attempted to get private field on non-instance');
-  }
-  return fn;
-}
-
-var isTouchDevice = function isTouchDevice() {
+function hasTouchDevice() {
   return !!('ontouchstart' in window || navigator.maxTouchPoints);
-};
+}
 
-var _positionMin = new WeakMap();
+function hasElementInVew($elem) {
+  const rect = $elem.getBoundingClientRect();
+  const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+  const windowWidth = window.innerWidth || document.documentElement.clientWidth;
+  const vertInView = rect.top <= windowHeight && rect.top + rect.height >= 0;
+  const horInView = rect.left <= windowWidth && rect.left + rect.width >= 0;
+  return vertInView && horInView;
+}
 
-var _items = new WeakMap();
+class SliderByItchief {
+  // configuration of the slider
+  _config = {};
+  // slider properties
+  _widthItem = 0;
+  _widthWrapper = 0;
+  _itemsInVisibleArea = 0;
+  _transform = 0; // текущее значение трансформации
+  _transformStep = 0; // значение шага трансформации
+  _intervalId = null;
+  // elements of slider
+  _$root = null; // root element of slider (default ".slider__item")
+  _$wrapper = null; // element with class ".slider__wrapper"
+  _$items = null; // element with class ".slider__items"
+  _$itemList = null; // elements with class ".slider__item"
+  _$controlPrev = null; // element with class .slider__control[data-slide="prev"]
+  _$controlNext = null; // element with class .slider__control[data-slide="next"]
+  _$indicatorList = null; // индикаторы
+  // min and min order
+  _minOrder = 0;
+  _maxOrder = 0;
+  // items with min and max order
+  _$itemByMinOrder = null;
+  _$itemByMaxOrder = null;
+  // min and max value of translate
+  _minTranslate = 0;
+  _maxTranslate = 0;
+  // default slider direction
+  _direction = 'next';
+  // determines whether the position of item needs to be determined
+  _updateItemPositionFlag = false;
+  _activeItems = [];
+  _isTouchDevice = hasTouchDevice();
 
-var _itemsWidth = new WeakMap();
-
-var _itemsDisplayed = new WeakMap();
-
-var _itemWidth = new WeakMap();
-
-var _transform = new WeakMap();
-
-var _transformStep = new WeakMap();
-
-var _config = new WeakMap();
-
-var _$elem = new WeakMap();
-
-var _$items = new WeakMap();
-
-var _$controls = new WeakMap();
-
-var _getIndex = new WeakSet();
-
-var _move = new WeakSet();
-
-var _eventHandler = new WeakSet();
-
-var _addEventListener = new WeakSet();
-
-var _init = new WeakSet();
-
-var SliderByItchief = /*#__PURE__*/ (function () {
-  // позиция активного элемента (минимальная)
-  // массив items
-  // ширина всех items
-  // количество одновременно отображаемых items
-  // ширина одного item
-  // текущее значение трансформации
-  // значение шага трансформации
-  // конфигурация слайдера
-  // базовый элемент слайдера
-  // элемент, в котором находятся items
-  // элементы управления слайдером
-  function SliderByItchief(_$elem2, _config2) {
-    _classCallCheck(this, SliderByItchief);
-
-    _init.add(this);
-
-    _addEventListener.add(this);
-
-    _eventHandler.add(this);
-
-    _move.add(this);
-
-    _getIndex.add(this);
-
-    _positionMin.set(this, {
-      writable: true,
-      value: 0,
-    });
-
-    _items.set(this, {
-      writable: true,
-      value: [],
-    });
-
-    _itemsWidth.set(this, {
-      writable: true,
-      value: 0,
-    });
-
-    _itemsDisplayed.set(this, {
-      writable: true,
-      value: 0,
-    });
-
-    _itemWidth.set(this, {
-      writable: true,
-      value: 0,
-    });
-
-    _transform.set(this, {
-      writable: true,
-      value: 0,
-    });
-
-    _transformStep.set(this, {
-      writable: true,
-      value: 0,
-    });
-
-    _config.set(this, {
-      writable: true,
-      value: {},
-    });
-
-    _$elem.set(this, {
-      writable: true,
-      value: void 0,
-    });
-
-    _$items.set(this, {
-      writable: true,
-      value: void 0,
-    });
-
-    _$controls.set(this, {
-      writable: true,
-      value: void 0,
-    });
-
-    _classPrivateMethodGet(this, _init, _init2).call(this, _$elem2, _config2);
-
-    _classPrivateMethodGet(this, _addEventListener, _addEventListener2).call(
-      this
-    );
+  // constructor
+  constructor($elem, config) {
+    this._init($elem, config);
+    this._addEventListener();
   }
 
-  _createClass(SliderByItchief, [
-    {
-      key: 'next',
-      // public
-      value: function next() {
-        _classPrivateMethodGet(this, _move, _move2).call(this, 'next');
-      },
-    },
-    {
-      key: 'prev',
-      value: function prev() {
-        _classPrivateMethodGet(this, _move, _move2).call(this, 'prev');
-      },
-    },
-  ]);
+  // initial setup of slider
+  _init($root, config) {
+    // elements of slider
+    this._$root = $root;
+    this._$itemList = $root.querySelectorAll(SELECTOR_ITEM);
+    this._$items = $root.querySelector(SELECTOR_ITEMS);
+    this._$wrapper = $root.querySelector(SELECTOR_WRAPPER);
+    this._$controlPrev = $root.querySelector(SELECTOR_PREV);
+    this._$controlNext = $root.querySelector(SELECTOR_NEXT);
+    this._$indicatorList = $root.querySelectorAll(SELECTOR_INDICATOR);
+    // create some constants
+    const $itemList = this._$itemList;
+    const widthItem = parseFloat(getComputedStyle($itemList[0]).width);
+    const widthWrapper = parseFloat(getComputedStyle(this._$wrapper).width);
+    const itemsInVisibleArea = Math.round(widthWrapper / widthItem);
+    // initial setting properties
+    this._widthItem = widthItem;
+    this._widthWrapper = widthWrapper;
+    this._itemsInVisibleArea = itemsInVisibleArea;
+    this._transformStep = 100 / itemsInVisibleArea;
+    this._config = config;
+    // initial setting order and translate items
+    $itemList.forEach(($item, position) => {
+      $item.dataset.index = position;
+      $item.dataset.order = position;
+      $item.dataset.translate = 0;
+      if (position < itemsInVisibleArea) {
+        this._activeItems.push(position);
+      }
+    });
+    this._updateClassForActiveItems();
+    // hide prev arrow for non-infinite slider
+    if (!this._config.loop) {
+      if (this._$controlPrev) {
+        this._$controlPrev.classList.add(CLASS_CONTROL_HIDE);
+      }
+      return;
+    }
+    // translate last item before first
+    const count = $itemList.length - 1;
+    const translate = -$itemList.length * 100;
+    $itemList[count].dataset.order = -1;
+    $itemList[count].dataset.translate = -$itemList.length * 100;
+    $itemList[count].style.transform = `translateX(${translate}%)`;
+    // update values of extreme properties
+    this._updateExtremeProperties();
+    this._updateIndicators();
+    // calling _autoplay
+    this._autoplay();
+  }
 
-  return SliderByItchief;
-})();
+  // подключения обработчиков событий для слайдера
+  _addEventListener() {
+    const $root = this._$root;
 
-var _getIndex2 = function _getIndex2() {
-  var _this = this;
+    // on click
+    $root.addEventListener('click', this._eventHandler.bind(this));
 
-  var extreme = {
-    min: 0,
-    max: 0,
-  };
-
-  _classPrivateFieldGet(this, _items).forEach(function (item, index) {
-    if (
-      item.position < _classPrivateFieldGet(_this, _items)[extreme.min].position
-    ) {
-      extreme.min = index;
+    // on hover
+    if (this._config.autoplay && this._config.pauseOnHover) {
+      $root.addEventListener('mouseenter', () => {
+        this._autoplay('stop');
+      });
+      $root.addEventListener('mouseleave', () => {
+        this._autoplay();
+      });
     }
 
-    if (
-      item.position > _classPrivateFieldGet(_this, _items)[extreme.max].position
-    ) {
-      extreme.max = index;
+    // on resize
+    if (this._config.refresh) {
+      window.addEventListener('resize', () => {
+        window.requestAnimationFrame(this._refresh.bind(this));
+      });
     }
-  });
 
-  return extreme;
-};
+    // on transitionstart and transitionend
+    if (this._config.loop) {
+      this._$items.addEventListener('transitionstart', () => {
+        // transitionstart
+        this._updateItemPositionFlag = true;
+        window.requestAnimationFrame(this._updateItemPosition.bind(this));
+      });
+      this._$items.addEventListener('transitionend', () => {
+        // transitionend
+        this._updateItemPositionFlag = false;
+      });
+    }
 
-var _move2 = function _move2(direction) {
-  var items = _classPrivateFieldGet(this, _items);
+    // on touchstart and touchend
+    if (this._isTouchDevice && this._config.swipe) {
+      $root.addEventListener('touchstart', e => {
+        this._touchStartCoord = e.changedTouches[0].clientX;
+      });
+      $root.addEventListener('touchend', e => {
+        const touchEndCoord = e.changedTouches[0].clientX;
+        const delta = touchEndCoord - this._touchStartCoord;
+        if (delta > 50) {
+          this._moveToPrev();
+        } else if (delta < -50) {
+          this._moveToNext();
+        }
+      });
+    }
 
-  var itemMin =
-    items[_classPrivateMethodGet(this, _getIndex, _getIndex2).call(this).min];
+    // on mousedown and mouseup
+    if (!this._isTouchDevice && this._config.swipe) {
+      $root.addEventListener('mousedown', e => {
+        this._touchStartCoord = e.clientX;
+      });
+      $root.addEventListener('mouseup', e => {
+        const touchEndCoord = e.clientX;
+        const delta = touchEndCoord - this._touchStartCoord;
+        if (delta > 50) {
+          this._moveToPrev();
+        } else if (delta < -50) {
+          this._moveToNext();
+        }
+      });
+    }
+  }
 
-  var itemMax =
-    items[_classPrivateMethodGet(this, _getIndex, _getIndex2).call(this).max];
+  // update values of extreme properties
+  _updateExtremeProperties() {
+    const $itemList = this._$itemList;
+    this._minOrder = +$itemList[0].dataset.order;
+    this._maxOrder = this._minOrder;
+    this._$itemByMinOrder = $itemList[0];
+    this._$itemByMaxOrder = $itemList[0];
+    this._minTranslate = +$itemList[0].dataset.translate;
+    this._maxTranslate = this._minTranslate;
+    $itemList.forEach($item => {
+      const order = +$item.dataset.order;
+      if (order < this._minOrder) {
+        this._minOrder = order;
+        this._$itemByMinOrder = $item;
+        this._minTranslate = +$item.dataset.translate;
+      } else if (order > this._maxOrder) {
+        this._maxOrder = order;
+        this._$itemByMaxOrder = $item;
+        this._minTranslate = +$item.dataset.translate;
+      }
+    });
+  }
 
-  if (direction === 'next') {
-    var positionMax =
-      _classPrivateFieldGet(this, _positionMin) +
-      _classPrivateFieldGet(this, _itemsDisplayed) -
-      1;
+  // update position of item
+  _updateItemPosition() {
+    if (!this._updateItemPositionFlag) {
+      return;
+    }
+    const $wrapper = this._$wrapper;
+    const $wrapperClientRect = $wrapper.getBoundingClientRect();
+    const widthHalfItem = $wrapperClientRect.width / this._itemsInVisibleArea / 2;
+    const count = this._$itemList.length;
+    if (this._direction === 'next') {
+      const wrapperLeft = $wrapperClientRect.left;
+      const $min = this._$itemByMinOrder;
+      let translate = this._minTranslate;
+      const clientRect = $min.getBoundingClientRect();
+      if (clientRect.right < wrapperLeft - widthHalfItem) {
+        $min.dataset.order = this._minOrder + count;
+        translate += count * 100;
+        $min.dataset.translate = translate;
+        $min.style.transform = `translateX(${translate}%)`;
+        // update values of extreme properties
+        this._updateExtremeProperties();
+      }
+    } else {
+      const wrapperRight = $wrapperClientRect.right;
+      const $max = this._$itemByMaxOrder;
+      let translate = this._maxTranslate;
+      const clientRect = $max.getBoundingClientRect();
+      if (clientRect.left > wrapperRight + widthHalfItem) {
+        $max.dataset.order = this._maxOrder - count;
+        translate -= count * 100;
+        $max.dataset.translate = translate;
+        $max.style.transform = `translateX(${translate}%)`;
+        // update values of extreme properties
+        this._updateExtremeProperties();
+      }
+    }
+    // updating...
+    requestAnimationFrame(this._updateItemPosition.bind(this));
+  }
 
-    if (_classPrivateFieldGet(this, _config).isLooped === false) {
-      var _this$positionMin;
+  // _updateClassForActiveItems
+  _updateClassForActiveItems() {
+    const activeItems = this._activeItems;
+    this._$itemList.forEach($item => {
+      const index = +$item.dataset.index;
+      if (activeItems.includes(index)) {
+        $item.classList.add(CLASS_ITEM_ACTIVE);
+      } else {
+        $item.classList.remove(CLASS_ITEM_ACTIVE);
+      }
+    });
+  }
 
-      if (positionMax >= itemMax.position) {
+  // _updateIndicators
+  _updateIndicators() {
+    const $indicatorList = this._$indicatorList;
+    if (!$indicatorList.length) {
+      return;
+    }
+    this._$itemList.forEach(($item, index) => {
+      if ($item.classList.contains(CLASS_ITEM_ACTIVE)) {
+        $indicatorList[index].classList.add(CLASS_INDICATOR_ACTIVE);
+      } else {
+        $indicatorList[index].classList.remove(CLASS_INDICATOR_ACTIVE);
+      }
+    });
+  }
+
+  // move slides
+  _move() {
+    if (!hasElementInVew(this._$root)) {
+      return;
+    }
+
+    const step = this._direction === 'next' ? -this._transformStep : this._transformStep;
+    const transform = this._transform + step;
+
+    if (!this._config.loop) {
+      const endTransformValue =
+        this._transformStep * (this._$itemList.length - this._itemsInVisibleArea);
+      if (transform < -endTransformValue || transform > 0) {
         return;
       }
-
-      if (positionMax >= itemMax.position - 1) {
-        _classPrivateFieldGet(this, _$controls).next.classList.add(
-          'slider__control_hide'
-        );
-      } else {
-        _classPrivateFieldGet(this, _$controls).prev.classList.remove(
-          'slider__control_hide'
-        );
+      this._$controlPrev.classList.remove(CLASS_CONTROL_HIDE);
+      this._$controlNext.classList.remove(CLASS_CONTROL_HIDE);
+      if (transform === -endTransformValue) {
+        this._$controlNext.classList.add(CLASS_CONTROL_HIDE);
+      } else if (transform === 0) {
+        this._$controlPrev.classList.add(CLASS_CONTROL_HIDE);
       }
-
-      _classPrivateFieldSet(
-        this,
-        _positionMin,
-        (_this$positionMin = +_classPrivateFieldGet(this, _positionMin)) + 1
-      ),
-        _this$positionMin;
-
-      _classPrivateFieldSet(
-        this,
-        _transform,
-        _classPrivateFieldGet(this, _transform) -
-          _classPrivateFieldGet(this, _transformStep)
-      );
-    } else {
-      var _this$positionMin2;
-
-      _classPrivateFieldSet(
-        this,
-        _positionMin,
-        (_this$positionMin2 = +_classPrivateFieldGet(this, _positionMin)) + 1
-      ),
-        _this$positionMin2;
-
-      var _positionMax =
-        _classPrivateFieldGet(this, _positionMin) +
-        _classPrivateFieldGet(this, _itemsDisplayed) -
-        1;
-
-      if (_positionMax > itemMax.position) {
-        itemMin.position = itemMax.position + 1;
-        itemMin.transform += items.length * 100;
-        itemMin.element.style.transform = 'translateX('.concat(
-          itemMin.transform,
-          '%)'
-        );
-      }
-
-      _classPrivateFieldSet(
-        this,
-        _transform,
-        _classPrivateFieldGet(this, _transform) -
-          _classPrivateFieldGet(this, _transformStep)
-      );
     }
-  } else {
-    if (_classPrivateFieldGet(this, _config).isLooped === false) {
-      var _this$positionMin3;
 
-      if (_classPrivateFieldGet(this, _positionMin) <= itemMin.position) {
-        return;
-      }
-
-      if (_classPrivateFieldGet(this, _positionMin) <= itemMin.position + 1) {
-        _classPrivateFieldGet(this, _$controls).prev.classList.add(
-          'slider__control_hide'
-        );
-      } else {
-        _classPrivateFieldGet(this, _$controls).next.classList.remove(
-          'slider__control_hide'
-        );
-      }
-
-      _classPrivateFieldSet(
-        this,
-        _positionMin,
-        (_this$positionMin3 = +_classPrivateFieldGet(this, _positionMin)) - 1
-      ),
-        _this$positionMin3;
-
-      _classPrivateFieldSet(
-        this,
-        _transform,
-        _classPrivateFieldGet(this, _transform) +
-          _classPrivateFieldGet(this, _transformStep)
-      );
+    const activeIndex = [];
+    if (this._direction === 'next') {
+      this._activeItems.forEach(index => {
+        let newIndex = ++index;
+        if (newIndex > this._$itemList.length - 1) {
+          newIndex -= this._$itemList.length;
+        }
+        activeIndex.push(newIndex);
+      });
     } else {
-      var _this$positionMin4;
-
-      _classPrivateFieldSet(
-        this,
-        _positionMin,
-        (_this$positionMin4 = +_classPrivateFieldGet(this, _positionMin)) - 1
-      ),
-        _this$positionMin4;
-
-      if (_classPrivateFieldGet(this, _positionMin) < itemMin.position) {
-        itemMax.position = itemMin.position - 1;
-        itemMax.transform -= items.length * 100;
-        itemMax.element.style.transform = 'translateX('.concat(
-          itemMax.transform,
-          '%)'
-        );
-      }
-
-      _classPrivateFieldSet(
-        this,
-        _transform,
-        _classPrivateFieldGet(this, _transform) +
-          _classPrivateFieldGet(this, _transformStep)
-      );
+      this._activeItems.forEach(index => {
+        let newIndex = --index;
+        if (newIndex < 0) {
+          newIndex += this._$itemList.length;
+        }
+        activeIndex.push(newIndex);
+      });
     }
+    this._activeItems = activeIndex;
+    this._updateClassForActiveItems();
+    this._updateIndicators();
+
+    this._transform = transform;
+    this._$items.style.transform = `translateX(${transform}%)`;
   }
 
-  _classPrivateFieldGet(this, _$items).style.transform = 'translateX('.concat(
-    _classPrivateFieldGet(this, _transform),
-    '%)'
-  );
-};
-
-var _eventHandler2 = function _eventHandler2(e) {
-  var target = e.target;
-
-  if (target.classList.contains('slider__control')) {
-    e.preventDefault();
-
-    _classPrivateMethodGet(this, _move, _move2).call(
-      this,
-      target.dataset.slide
-    );
+  // _moveToNext
+  _moveToNext() {
+    this._direction = 'next';
+    this._move();
   }
-};
 
-var _addEventListener2 = function _addEventListener2() {
-  _classPrivateFieldGet(this, _$elem).addEventListener(
-    'click',
-    _classPrivateMethodGet(this, _eventHandler, _eventHandler2).bind(this)
-  );
-};
+  // _moveToPrev
+  _moveToPrev() {
+    this._direction = 'prev';
+    this._move();
+  }
 
-var _init2 = function _init2($elem, config) {
-  var _this2 = this;
-
-  var $items = $elem.querySelectorAll('.slider__item');
-
-  _classPrivateFieldSet(this, _$elem, $elem);
-
-  _classPrivateFieldSet(this, _config, config);
-
-  _classPrivateFieldSet(this, _$items, $elem.querySelector('.slider__items'));
-
-  _classPrivateFieldSet(this, _$controls, {
-    prev: $elem.querySelector('.slider__control[data-slide="prev"]'),
-    next: $elem.querySelector('.slider__control[data-slide="next"]'),
-  });
-
-  _classPrivateFieldSet(
-    this,
-    _itemWidth,
-    parseFloat(getComputedStyle($items[0]).width)
-  );
-
-  _classPrivateFieldSet(
-    this,
-    _itemsWidth,
-    parseFloat(getComputedStyle(_classPrivateFieldGet(this, _$items)).width)
-  );
-
-  _classPrivateFieldSet(
-    this,
-    _itemsDisplayed,
-    Math.round(
-      _classPrivateFieldGet(this, _itemsWidth) /
-        _classPrivateFieldGet(this, _itemWidth)
-    )
-  );
-
-  _classPrivateFieldSet(
-    this,
-    _transformStep,
-    100 / _classPrivateFieldGet(this, _itemsDisplayed)
-  );
-
-  $items.forEach(function (element, position) {
-    return _classPrivateFieldGet(_this2, _items).push({
-      element: element,
-      position: position,
-      transform: 0,
+  // _moveTo
+  _moveTo(index) {
+    const $indicatorList = this._$indicatorList;
+    let nearestIndex = null;
+    let diff = null;
+    $indicatorList.forEach($indicator => {
+      if ($indicator.classList.contains(CLASS_INDICATOR_ACTIVE)) {
+        const slideTo = +$indicator.dataset.slideTo;
+        if (diff === null) {
+          nearestIndex = slideTo;
+          diff = Math.abs(index - nearestIndex);
+        } else {
+          if (Math.abs(index - slideTo) < diff) {
+            nearestIndex = slideTo;
+            diff = Math.abs(index - nearestIndex);
+          }
+        }
+      }
     });
-  });
-
-  if (_classPrivateFieldGet(this, _config).isLooped === false) {
-    _classPrivateFieldGet(this, _$controls).prev.classList.add(
-      'slider__control_hide'
-    );
+    diff = index - nearestIndex;
+    if (diff === 0) {
+      return;
+    }
+    this._direction = diff > 0 ? 'next' : 'prev';
+    for (let i = 1; i <= Math.abs(diff); i++) {
+      this._move();
+    }
   }
-};
+
+  // обработчик click для слайдера
+  _eventHandler(e) {
+    const $target = e.target;
+    this._autoplay('stop');
+    if ($target.classList.contains(CLASS_CONTROL)) {
+      // при клике на кнопки влево и вправо
+      e.preventDefault();
+      this._direction = $target.dataset.slide;
+      this._move();
+    } else if ($target.dataset.slideTo) {
+      // при клике на индикаторы
+      const index = +$target.dataset.slideTo;
+      this._moveTo(index);
+    }
+    this._autoplay();
+  }
+
+  // _autoplay
+  _autoplay(action) {
+    if (!this._config.autoplay) {
+      return;
+    }
+    if (action === 'stop') {
+      clearInterval(this._intervalId);
+      this._intervalId = null;
+      return;
+    }
+    if (this._intervalId === null) {
+      this._intervalId = setInterval(() => {
+        this._direction = 'next';
+        this._move();
+      }, this._config.interval);
+    }
+  }
+
+  // _refresh
+  _refresh() {
+    // create some constants
+    const $itemList = this._$itemList;
+    const widthItem = parseFloat(getComputedStyle($itemList[0]).width);
+    const widthWrapper = parseFloat(getComputedStyle(this._$wrapper).width);
+    const itemsInVisibleArea = Math.round(widthWrapper / widthItem);
+
+    if (itemsInVisibleArea === this._itemsInVisibleArea) {
+      return;
+    }
+
+    this._autoplay('stop');
+
+    this._$items.classList.add(SLIDER_TRANSITION_OFF);
+    this._$items.style.transform = 'translateX(0)';
+
+    // setting properties after reset
+    this._widthItem = widthItem;
+    this._widthWrapper = widthWrapper;
+    this._itemsInVisibleArea = itemsInVisibleArea;
+    this._transform = 0;
+    this._transformStep = 100 / itemsInVisibleArea;
+    this._updateItemPositionFlag = false;
+    this._activeItems = [];
+
+    // setting order and translate items after reset
+    $itemList.forEach(($item, position) => {
+      $item.dataset.index = position;
+      $item.dataset.order = position;
+      $item.dataset.translate = 0;
+      $item.style.transform = 'translateX(0)';
+      if (position < itemsInVisibleArea) {
+        this._activeItems.push(position);
+      }
+    });
+
+    this._updateClassForActiveItems();
+
+    window.requestAnimationFrame(() => {
+      console.log(this);
+      this._$items.classList.remove(SLIDER_TRANSITION_OFF);
+    });
+
+    // hide prev arrow for non-infinite slider
+    if (!this._config.loop) {
+      if (this._$controlPrev) {
+        this._$controlPrev.classList.add(CLASS_CONTROL_HIDE);
+      }
+      return;
+    }
+
+    // translate last item before first
+    const count = $itemList.length - 1;
+    const translate = -$itemList.length * 100;
+    $itemList[count].dataset.order = -1;
+    $itemList[count].dataset.translate = -$itemList.length * 100;
+    $itemList[count].style.transform = `translateX(${translate}%)`;
+    // update values of extreme properties
+    this._updateExtremeProperties();
+    this._updateIndicators();
+    // calling _autoplay
+    this._autoplay();
+  }
+
+  // public
+  next() {
+    this._moveToNext();
+  }
+  prev() {
+    this._moveToPrev();
+  }
+  moveTo(index) {
+    this._moveTo(index);
+  }
+  refresh() {
+    this._refresh();
+  }
+}
+
+/*document.querySelectorAll('[data-slider="chiefslider"]').forEach($slider => {
+  const dataset = $slider.dataset;
+  const loop = dataset.loop ? true : false;
+  const autoplay = dataset.autoplay ? true : false;
+  const interval = dataset.interval ? parseInt(dataset.interval) : 5000;
+  const pauseOnHover = dataset.pauseOnHover ? true : false;
+  new SliderByItchief($element, {
+    loop: loop,
+    autoplay: autoplay,
+    interval: interval,
+    pauseOnHover: pauseOnHover,
+  });
+});*/
+
+const $slider = document.querySelector('[data-slider="chiefslider"]');
+const slider = new SliderByItchief($slider, {
+  loop: true, // whether to enable infinity loop (default: true)
+  autoplay: false, // whether to enable autoplay (default: false)
+  interval: 500, // autoplay interval in milliseconds (default: 5000)
+  pauseOnHover: true, // whether to stop autoplay while a slider is hovered
+  refresh: true, // should the slider be updated when the viewport is resized
+  swipe: false, // enable swiping
+});
+
+// perPage
+// perMove
+// pagination
